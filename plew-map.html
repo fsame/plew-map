@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>plew-map — Continuous Data on Calibrated Images</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI', system-ui, sans-serif; background:#0f1419; color:#e8e8e8; min-height:100vh; }
+.app-container { display:flex; min-height:100vh; }
+
+/* ── Sidebar (PLeW conventions) ─────────────────────────── */
+.sidebar { width:350px; background:#1a1f26; border-right:1px solid #2d3640; padding:20px; overflow-y:auto; flex-shrink:0; height:100vh; position:sticky; top:0; }
+.sidebar h1 { font-size:1.25rem; color:#4ecdc4; margin-bottom:4px; }
+.subtitle { font-size:0.75rem; color:#888; margin-bottom:14px; line-height:1.4; }
+.section { margin-bottom:18px; border:1px solid #2d3640; border-radius:10px; padding:12px; background:#161b21; }
+.section-title { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#4ecdc4; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+.step-badge { background:#233038; color:#7fd9d3; border-radius:10px; font-size:0.62rem; padding:2px 8px; letter-spacing:0.04em; }
+.hint { font-size:0.68rem; color:#8a949e; line-height:1.45; margin-top:6px; }
+.hint b { color:#b8c2cc; }
+
+.file-drop { border:2px dashed #2d3640; border-radius:10px; padding:18px 12px; text-align:center; cursor:pointer; transition:all 0.2s; }
+.file-drop:hover, .file-drop.dragover { border-color:#4ecdc4; background:#1b2a2c; }
+.file-drop-icon { font-size:1.6rem; }
+.file-drop-text { font-size:0.72rem; color:#9aa5b0; margin-top:6px; line-height:1.4; }
+.file-input { display:none; }
+
+.btn { display:inline-block; border:1px solid #2d3640; background:#232a33; color:#e8e8e8; border-radius:8px; padding:7px 10px; font-size:0.72rem; cursor:pointer; transition:all 0.15s; font-family:inherit; }
+.btn:hover { border-color:#4ecdc4; color:#4ecdc4; }
+.btn.primary { background:#1f4a47; border-color:#2e6e69; color:#8fe8e1; }
+.btn.primary:hover { background:#265a56; }
+.btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.btn:disabled { opacity:0.4; cursor:default; }
+
+label.field { display:block; font-size:0.7rem; color:#9aa5b0; margin:8px 0 3px; }
+select, input[type=number], input[type=text] { width:100%; background:#0f1419; color:#e8e8e8; border:1px solid #2d3640; border-radius:6px; padding:6px 8px; font-size:0.75rem; font-family:inherit; }
+select:focus, input:focus { outline:none; border-color:#4ecdc4; }
+input[type=color] { background:none; border:1px solid #2d3640; border-radius:6px; width:34px; height:24px; padding:1px; cursor:pointer; }
+input[type=range] { width:100%; accent-color:#4ecdc4; }
+input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.inline { display:flex; align-items:center; gap:7px; font-size:0.74rem; margin-top:8px; }
+.radio-row { display:flex; gap:12px; font-size:0.74rem; margin-bottom:8px; flex-wrap:wrap; }
+.radio-row label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+
+.status { font-size:0.7rem; border-radius:6px; padding:6px 8px; margin-top:8px; display:none; line-height:1.4; }
+.status.ok { display:block; background:#15332c; color:#7fe8c0; border:1px solid #1e5a4a; }
+.status.warn { display:block; background:#3a2f14; color:#ffd93d; border:1px solid #6b5a1e; }
+.status.err { display:block; background:#3a1a1a; color:#ff8f8f; border:1px solid #6b2d2d; }
+
+.calib-pt { border:1px solid #2d3640; border-radius:8px; padding:8px; margin-top:8px; background:#11161c; }
+.calib-pt .pt-head { display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; margin-bottom:5px; }
+.pt-tag { color:#ffd93d; font-weight:700; }
+.pt-px { color:#8a949e; font-size:0.66rem; }
+
+/* Legend */
+.legend-item { display:flex; align-items:center; gap:8px; font-size:0.74rem; margin-top:6px; }
+.legend-swatch { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,0.25); flex-shrink:0; }
+.grad-bar { height:12px; border-radius:6px; border:1px solid #2d3640; margin-top:6px; }
+.grad-labels { display:flex; justify-content:space-between; font-size:0.66rem; color:#8a949e; margin-top:2px; }
+.legend-sub { font-size:0.68rem; color:#4ecdc4; margin-top:10px; text-transform:uppercase; letter-spacing:0.05em; }
+.legend-sub:first-child { margin-top:0; }
+.legend-item input[type=color] { margin-left:auto; }
+.size-legend svg { display:block; margin-top:4px; }
+
+/* ── Main area ──────────────────────────────────────────── */
+.main-area { flex:1; padding:26px; overflow:auto; }
+.map-header { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+.map-header h2 { font-size:1.05rem; font-weight:600; }
+.map-header .meta { font-size:0.72rem; color:#8a949e; }
+.map-stage { position:relative; display:inline-block; max-width:100%; border:1px solid #2d3640; border-radius:10px; overflow:hidden; background:#fff; box-shadow:0 6px 24px rgba(0,0,0,0.4); }
+.map-stage img { display:block; max-width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
+.map-stage svg.overlay { position:absolute; inset:0; width:100%; height:100%; }
+.map-stage.placing { cursor:crosshair; }
+.empty-state { border:2px dashed #2d3640; border-radius:12px; padding:70px 40px; text-align:center; color:#6b7680; font-size:0.85rem; max-width:640px; line-height:1.6; }
+.empty-state .big { font-size:2rem; margin-bottom:10px; }
+
+.pt-shape { cursor:pointer; transition:opacity 0.1s; }
+.pt-shape:hover { opacity:1 !important; }
+
+/* Tooltip */
+.tooltip { position:fixed; background:#1a1f26; border:1px solid #4ecdc4; border-radius:8px; padding:9px 11px; font-size:0.72rem; line-height:1.5; pointer-events:none; z-index:200; display:none; max-width:280px; box-shadow:0 6px 18px rgba(0,0,0,0.5); }
+.tooltip.visible { display:block; }
+.tooltip-hint { color:#8a949e; font-size:0.64rem; margin-top:5px; border-top:1px solid #2d3640; padding-top:5px; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(6,10,14,0.75); z-index:300; display:none; align-items:center; justify-content:center; padding:24px; }
+.modal-overlay.active { display:flex; }
+.modal { background:#1a1f26; border:1px solid #2d3640; border-radius:14px; max-width:640px; width:100%; max-height:86vh; overflow-y:auto; padding:20px; }
+.modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.modal-head h3 { font-size:1rem; color:#4ecdc4; }
+.modal-close { background:none; border:none; color:#8a949e; font-size:1.3rem; cursor:pointer; }
+.modal-close:hover { color:#ff6b6b; }
+.data-table { width:100%; border-collapse:collapse; font-size:0.76rem; }
+.data-table td { border-bottom:1px solid #232a33; padding:6px 8px; vertical-align:top; }
+.data-table td:first-child { color:#8a949e; width:36%; }
+.media-section { margin-top:14px; }
+.media-section-title { font-size:0.72rem; color:#4ecdc4; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px; }
+.media-tabs { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+.media-tab { background:#232a33; border:1px solid #2d3640; color:#cfd6dd; border-radius:7px; padding:5px 10px; font-size:0.7rem; cursor:pointer; }
+.media-tab.active { border-color:#4ecdc4; color:#4ecdc4; }
+.media-pane { display:none; }
+.media-pane.active { display:block; }
+.media-pane audio { width:100%; }
+.media-pane img { max-width:100%; border-radius:8px; }
+.media-pane iframe, .media-pane video { width:100%; aspect-ratio:16/9; border:none; border-radius:8px; background:#000; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <div class="sidebar">
+    <h1>🗺️ plew-map</h1>
+    <p class="subtitle">Continuous data on a calibrated image. Upload a CSV + background map, calibrate, and encode dimensions with color, size &amp; shape. Click points for the full record with media.</p>
+
+    <div class="section">
+      <div class="section-title"><span>Data input</span></div>
+      <div class="file-drop" id="fileDrop">
+        <div class="file-drop-icon">📁</div>
+        <div class="file-drop-text">Drop CSV + background image<br>(+ media files) here, or click</div>
+        <input type="file" class="file-input" id="fileInput" multiple accept=".csv,.tsv,.png,.jpg,.jpeg,.gif,.webp,.svg,.wav,.mp3,.ogg,.flac,.aac,.m4a,.mp4,.webm,.mov">
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="document.getElementById('bgInput').click()">Set background…</button>
+        <button class="btn" onclick="useBlankFrame()">No background</button>
+      </div>
+      <input type="file" class="file-input" id="bgInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg">
+      <div class="btn-row">
+        <button class="btn primary" onclick="loadDemoALI()">Demo: atlas map</button>
+        <button class="btn primary" onclick="loadDemoTOEIC()">Demo: TOEIC scatter</button>
+      </div>
+      <div class="status" id="inputStatus"></div>
+    </div>
+
+    <div class="section" id="locSection" style="display:none;">
+      <div class="section-title"><span>Location columns</span><span class="step-badge">Step 1</span></div>
+      <label class="field">X column (e.g. loc::lon)</label>
+      <select id="locXSel" onchange="onLocChange()"></select>
+      <label class="field">Y column (e.g. loc::lat)</label>
+      <select id="locYSel" onchange="onLocChange()"></select>
+      <div class="inline">
+        <input type="checkbox" id="mercChk" onchange="onLocChange()">
+        <label for="mercChk">Web Mercator y-transform</label>
+      </div>
+      <div class="hint">Turn on when the background is a <b>web-map screenshot</b> (Google/OSM/Leaflet, EPSG:3857) and columns are lat/lon. Leave off for plain plots, equirectangular maps, or small extents (≲3° latitude). See design doc §4.</div>
+      <div class="status" id="locStatus"></div>
+    </div>
+
+    <div class="section" id="calibSection" style="display:none;">
+      <div class="section-title"><span>Calibration</span><span class="step-badge">Step 2</span></div>
+      <div class="radio-row">
+        <label><input type="radio" name="calibMode" value="edges" checked onchange="setCalibMode(this.value)"> Image edges</label>
+        <label><input type="radio" name="calibMode" value="affine" onchange="setCalibMode(this.value)"> Three-point</label>
+        <label><input type="radio" name="calibMode" value="pixels" onchange="setCalibMode(this.value)"> Pixels</label>
+      </div>
+      <div id="calibEdges">
+        <div class="hint" style="margin-top:0;">Type the data value at each image edge. Values are <b>prefilled from the data range</b> as an approximate starting point — for accurate placement, replace them with the image's true bounds (see the test-data README for the demo values).</div>
+        <div class="row2">
+          <div><label class="field">Left edge (X)</label><input type="number" step="any" id="edgeL" onchange="edgeEdited()"></div>
+          <div><label class="field">Right edge (X)</label><input type="number" step="any" id="edgeR" onchange="edgeEdited()"></div>
+        </div>
+        <div class="row2">
+          <div><label class="field">Top edge (Y)</label><input type="number" step="any" id="edgeT" onchange="edgeEdited()"></div>
+          <div><label class="field">Bottom edge (Y)</label><input type="number" step="any" id="edgeB" onchange="edgeEdited()"></div>
+        </div>
+      </div>
+      <div id="calibAffine" style="display:none;">
+        <div class="hint" style="margin-top:0;">Place 3 spread-out reference points on the image, then type each point's data coordinates. Handles rotation &amp; skew.</div>
+        <div id="calibPtsList"></div>
+      </div>
+      <div id="calibPixels" style="display:none;">
+        <div class="hint" style="margin-top:0;">CSV coordinates are already image pixels (origin top-left, y down). No parameters needed.</div>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn primary" style="flex:1;" onclick="applyCalibration()">Apply calibration &amp; plot</button>
+        <button class="btn" onclick="resetCalibration()" title="Restore prefilled edge values and clear all three-point markers">Reset to defaults</button>
+      </div>
+      <div class="status" id="calibStatus"></div>
+    </div>
+
+    <div class="section" id="encSection" style="display:none;">
+      <div class="section-title"><span>Encodings</span><span class="step-badge">Step 3</span></div>
+
+      <label class="field">Color by</label>
+      <select id="colorSel" onchange="onEncChange()"></select>
+      <div class="radio-row" id="colorTypeRow" style="margin-top:6px; display:none;">
+        <label><input type="radio" name="colorType" value="continuous" onchange="setEncType('color',this.value)"> Continuous</label>
+        <label><input type="radio" name="colorType" value="categorical" onchange="setEncType('color',this.value)"> Categorical</label>
+      </div>
+      <div id="rampRow" style="display:none;">
+        <label class="field">Ramp</label>
+        <select id="rampSel" onchange="onEncChange()">
+          <option value="viridis">Viridis</option>
+          <option value="blueorange">Blue → Orange</option>
+          <option value="greens">Light → Dark green</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <div class="inline" id="customRamp" style="display:none;">
+          <span style="font-size:0.7rem;color:#9aa5b0;">Low</span><input type="color" id="rampA" value="#4d96ff" onchange="onEncChange()">
+          <span style="font-size:0.7rem;color:#9aa5b0;">High</span><input type="color" id="rampB" value="#e67e22" onchange="onEncChange()">
+        </div>
+      </div>
+
+      <label class="field" style="margin-top:12px;">Size by</label>
+      <select id="sizeSel" onchange="onEncChange()"></select>
+      <div class="radio-row" id="sizeTypeRow" style="margin-top:6px; display:none;">
+        <label><input type="radio" name="sizeType" value="continuous" onchange="setEncType('size',this.value)"> Continuous</label>
+        <label><input type="radio" name="sizeType" value="categorical" onchange="setEncType('size',this.value)"> Categorical</label>
+      </div>
+      <div class="row2" id="sizeRange" style="display:none; margin-top:6px;">
+        <div><label class="field">Min px</label><input type="number" id="sizeMin" value="4" min="1" onchange="onEncChange()"></div>
+        <div><label class="field">Max px</label><input type="number" id="sizeMax" value="16" min="1" onchange="onEncChange()"></div>
+      </div>
+
+      <label class="field" style="margin-top:12px;">Shape by <span style="color:#6b7680;">(categorical only)</span></label>
+      <select id="shapeSel" onchange="onEncChange()"></select>
+      <div class="status" id="encStatus"></div>
+    </div>
+
+    <div class="section" id="dispSection" style="display:none;">
+      <div class="section-title"><span>Display</span></div>
+      <label class="field">Point size — scales all points: <span id="baseSizeVal">9</span> px</label>
+      <input type="range" id="baseSize" min="2" max="30" value="9" oninput="onDisplayChange()">
+      <label class="field">Opacity: <span id="opacityVal">0.9</span></label>
+      <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="0.9" oninput="onDisplayChange()">
+      <div class="inline"><input type="checkbox" id="strokeChk" checked onchange="onDisplayChange()"><label for="strokeChk">Outline points</label></div>
+      <div class="inline"><input type="checkbox" id="ringChk" onchange="onDisplayChange()"><label for="ringChk">Size as separate ring (open circle)</label></div>
+      <div class="hint" id="ringHint" style="display:none;">Fill shape keeps the base size &amp; color; an independent open ring encodes the size variable — the two channels are visually de-linked.</div>
+      <div class="inline"><input type="checkbox" id="gratChk" onchange="onDisplayChange()"><label for="gratChk">Lat/lon graticule</label></div>
+      <div class="hint" id="gratHint" style="display:none;">Grid lines are drawn in <b>data space</b> through the calibration — so Mercator shows its unequal latitude spacing, and affine calibrations show tilt.</div>
+    </div>
+
+    <div class="section" id="exportSection" style="display:none;">
+      <div class="section-title"><span>Export</span></div>
+      <div class="btn-row" style="margin-top:0;">
+        <button class="btn primary" style="flex:1;" onclick="downloadCSV()">💾 Save to CSV</button>
+        <button class="btn" onclick="downloadSnapshot()">📸 Snapshot PNG</button>
+      </div>
+      <div class="hint"><b>Save to CSV</b> downloads the dataset with the current calibration embedded as a reserved <b>__PLEWMAP_CALIB__</b> row. Re-uploading that file auto-calibrates: location columns, the Mercator setting, and the edge values or three-point transform all restore automatically.</div>
+      <div class="status" id="exportStatus"></div>
+    </div>
+
+    <div class="section" id="legendSection" style="display:none;">
+      <div class="section-title"><span>Legend</span></div>
+      <div id="legendBody"></div>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="map-header" id="mapHeader" style="display:none;">
+      <h2 id="mapTitle">plew-map</h2>
+      <span class="meta" id="mapMeta"></span>
+    </div>
+    <div class="empty-state" id="emptyState">
+      <div class="big">🗺️</div>
+      Upload a CSV and a background image to begin —<br>
+      or press a <b style="color:#4ecdc4;">Demo</b> button in the sidebar to see plew-map reproduce an atlas-style language map and a TOEIC fluency scatter.
+    </div>
+    <div class="map-stage" id="mapStage" style="display:none;">
+      <img id="bgImage" alt="background">
+      <svg class="overlay" id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3 id="modalTitle">Record</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS & COLUMN SCHEMA (extends PLeW: adds loc::)
+// ============================================================
+const COLORS = ['#4ecdc4','#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#9b59b6','#e67e22','#1abc9c','#e74c3c','#3498db'];
+const SHAPES = ['circle','square','diamond','triangle'];
+const COLUMN_PREFIXES = { 'loc::':'loc', 'dim::':'dim', 'med::':'med', 'desc::':'desc', 'res::':'res' };
+const RESERVED_COLUMNS = ['description','title','name'];
+const DESC_LIKE = ['gloss','glossing','transcription','transcript','translation','meaning','orthography','description','text','sentence','note','notes'];
+const MEDIA_URL_PATTERNS = [
+  /^(audio|image|img|photo|picture|video|media|thumbnail|thumb|poster|clip|sound|track)[-_]?(url|file|src|path|link|href)$/i,
+  /^(url|file|src|path|link|href)[-_]?(audio|image|img|photo|picture|video|media|thumbnail|thumb)$/i
+];
+const MEDIA_TYPE_HINTS = { audio:'audio',sound:'audio',track:'audio', image:'image',img:'image',photo:'image',picture:'image',thumbnail:'image',thumb:'image',poster:'image', video:'video',clip:'video', media:'auto' };
+const VIRIDIS = ['#440154','#46327e','#365c8d','#277f8e','#1fa187','#4ac16d','#a0da39','#fde725'];
+const RAMPS = { viridis:VIRIDIS, blueorange:['#4d96ff','#e8e8e8','#e67e22'], greens:['#e7f7d8','#8fd14f','#2e6b30'] };
+
+function parsePrefix(h){
+  for (const [p,t] of Object.entries(COLUMN_PREFIXES)) if (h.startsWith(p)) return { type:t, displayName:h.slice(p.length), key:h };
+  return null;
+}
+function displayName(h){ const p=parsePrefix(h); return p ? p.displayName : h; }
+
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  headers:[], data:[], cols:{},           // cols[key] = {role, numeric, values, uniq}
+  imageUrl:null, imgW:0, imgH:0, isFrame:false, imageSet:false,
+  locX:null, locY:null, mercator:false,
+  calib:{ mode:'edges', edges:{L:null,R:null,T:null,B:null}, pts:[mkPt(),mkPt(),mkPt()], affine:null, placing:-1, valid:false, prefilled:false },
+  enc:{ color:{col:'',type:'categorical',ramp:'viridis',catColors:{}}, size:{col:'',type:'continuous'}, shape:{col:''} },
+  media:{}, datasetName:'', skipped:0, pendingCalib:null
+};
+function mkPt(){ return { px:null, py:null, dx:null, dy:null }; }
+
+// ============================================================
+// CSV PARSING (delimiter-detecting, quote-aware — PLeW pattern)
+// ============================================================
+function detectDelimiter(lines){
+  const cands = [',','\t',';'];
+  let best=',', bestScore=-1;
+  for (const d of cands){
+    const counts = lines.slice(0,10).map(l=>splitLine(l,d).length);
+    if (!counts.length) continue;
+    const first = counts[0];
+    if (first<2) continue;
+    const consistent = counts.every(c=>c===first);
+    const score = first + (consistent?100:0);
+    if (score>bestScore){ bestScore=score; best=d; }
+  }
+  return best;
+}
+function splitLine(line, d){
+  const out=[]; let cur='', inQ=false;
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (inQ){
+      if (ch==='"'){ if (line[i+1]==='"'){ cur+='"'; i++; } else inQ=false; }
+      else cur+=ch;
+    } else {
+      if (ch==='"') inQ=true;
+      else if (ch===d){ out.push(cur); cur=''; }
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+function parseCSV(text){
+  const lines = text.replace(/\r\n?/g,'\n').split('\n').filter(l=>l.trim().length);
+  if (!lines.length) return { headers:[], data:[] };
+  const d = detectDelimiter(lines);
+  const headers = splitLine(lines[0],d).map(h=>h.trim());
+  const data = lines.slice(1).map((l,i)=>{
+    const cells = splitLine(l,d);
+    const row = { _index:i };
+    headers.forEach((h,j)=>{ row[h] = (cells[j]??'').trim(); });
+    return row;
+  });
+  return { headers, data };
+}
+
+// ============================================================
+// COLUMN CLASSIFICATION
+// ============================================================
+function isMediaName(h){
+  const dn = displayName(h);
+  if (MEDIA_URL_PATTERNS.some(p=>p.test(dn))) return true;
+  return /^(audio|image|img|video)$/i.test(dn);
+}
+function classifyColumns(){
+  S.cols = {};
+  S.headers.forEach(h=>{
+    const p = parsePrefix(h);
+    const dn = displayName(h).toLowerCase();
+    let role = 'auto';
+    if (p) role = p.type;
+    else if (isMediaName(h) || /^(media|audio|image|video)[-_]?type$/i.test(dn)) role = 'med';
+    else if (DESC_LIKE.includes(dn)) role = 'desc';
+    const vals = S.data.map(r=>r[h]);
+    const nonEmpty = vals.filter(v=>v!=='');
+    const numeric = nonEmpty.length>0 && nonEmpty.every(v=>Number.isFinite(Number(v)));
+    S.cols[h] = { role, numeric, uniq:[...new Set(nonEmpty)].sort() };
+  });
+}
+function guessLocColumns(){
+  const keys = S.headers;
+  const byLoc = keys.filter(k=>S.cols[k].role==='loc');
+  const find = (pool, res)=> pool.find(k=>res.some(rx=>rx.test(displayName(k))));
+  const XPAT = [/^lon(g(itude)?)?$/i, /^lng$/i, /^x$/i, /lon/i, /(^|_)x($|_)/i];
+  const YPAT = [/^lat(itude)?$/i, /^y$/i, /lat/i, /(^|_)y($|_)/i];
+  let x = find(byLoc,XPAT) || find(keys.filter(k=>S.cols[k].numeric),XPAT);
+  let y = find(byLoc,YPAT) || find(keys.filter(k=>S.cols[k].numeric),YPAT);
+  if (byLoc.length>=2){ x = x||byLoc[0]; y = y||byLoc.find(k=>k!==x)||byLoc[1]; }
+  if (!x || !y){
+    const nums = keys.filter(k=>S.cols[k].numeric && k!==x && k!==y);
+    x = x || nums[0] || null;
+    y = y || nums.find(k=>k!==x) || null;
+  }
+  S.locX = x; S.locY = y;
+}
+
+// ============================================================
+// PROJECTION & CALIBRATION TRANSFORMS
+// ============================================================
+function projY(v){
+  if (!S.mercator) return v;
+  const lat = Math.max(-85, Math.min(85, v));
+  return Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360));
+}
+function solveAffine(){
+  // Solve px = a·x + b·y + c ; py = d·x + e·y + f from 3 refs (data coords projected)
+  const P = S.calib.pts;
+  if (P.some(p=>[p.px,p.py,p.dx,p.dy].some(v=>v===null||v===''||Number.isNaN(v)))) return null;
+  const x = P.map(p=>Number(p.dx)), y = P.map(p=>projY(Number(p.dy)));
+  const det3 = (m)=> m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1]) - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+  const M = [[x[0],y[0],1],[x[1],y[1],1],[x[2],y[2],1]];
+  const D = det3(M);
+  if (Math.abs(D) < 1e-9) return { degenerate:true };
+  const solve = (t)=>{
+    const rep = (col)=> M.map((row,i)=> row.map((v,j)=> j===col ? t[i] : v));
+    return [det3(rep(0))/D, det3(rep(1))/D, det3(rep(2))/D];
+  };
+  const [a,b,c] = solve(P.map(p=>Number(p.px)));
+  const [d,e,f] = solve(P.map(p=>Number(p.py)));
+  return { a,b,c,d,e,f };
+}
+function dataToPixel(xv, yv){
+  const tx = Number(xv), tyRaw = Number(yv);
+  if (!Number.isFinite(tx) || !Number.isFinite(tyRaw)) return null;
+  const ty = projY(tyRaw);
+  const C = S.calib;
+  if (C.mode==='pixels') return [tx, tyRaw];
+  if (C.mode==='edges'){
+    const {L,R,T,B} = C.edges;
+    if ([L,R,T,B].some(v=>v===null) || L===R || T===B) return null;
+    const pT = projY(T), pB = projY(B);
+    return [ (tx-L)/(R-L)*S.imgW, (ty-pT)/(pB-pT)*S.imgH ];
+  }
+  if (C.mode==='affine' && C.affine && !C.affine.degenerate){
+    const A = C.affine;
+    return [ A.a*tx + A.b*ty + A.c, A.d*tx + A.e*ty + A.f ];
+  }
+  return null;
+}
+
+// ============================================================
+// MEDIA (PLeW resolution chain, simplified)
+// ============================================================
+function inferMediaTypeFromUrl(url){
+  const l = (url||'').toLowerCase();
+  if (/youtu\.?be/.test(l)) return 'video';
+  if (/\.(jpe?g|png|gif|webp|svg|bmp)(\?|$)/.test(l)) return 'image';
+  if (/\.(mp4|webm|ogv|mov|avi|mkv)(\?|$)/.test(l)) return 'video';
+  if (/\.(mp3|wav|ogg|flac|aac|m4a|opus)(\?|$)/.test(l)) return 'audio';
+  return 'unknown';
+}
+function resolveMediaUrl(url){
+  if (!url) return url;
+  url = url.trim();
+  if (/^(https?:|blob:|data:)/.test(url)) return url;
+  const base = url.split('/').pop();
+  if (S.media[base]) return S.media[base];
+  return url;
+}
+function toYouTubeEmbed(url){
+  let m = url.match(/youtu\.be\/([\w-]{6,})/) || url.match(/[?&]v=([\w-]{6,})/);
+  if (!m) return null;
+  let t = url.match(/[?&#]t=(\d+)/);
+  return 'https://www.youtube.com/embed/' + m[1] + (t ? '?start='+t[1] : '');
+}
+function getRowMedia(row){
+  const media = [];
+  S.headers.forEach(h=>{
+    const c = S.cols[h];
+    if (!(c.role==='med' || (c.role==='auto' && isMediaName(h)))) return;
+    const val = row[h];
+    if (!val) return;
+    const dn = displayName(h).toLowerCase();
+    let type = 'auto';
+    for (const [frag,t] of Object.entries(MEDIA_TYPE_HINTS)) if (dn.includes(frag)){ type=t; break; }
+    const url = resolveMediaUrl(val);
+    if (type==='auto' || type==='video') { const inferred = inferMediaTypeFromUrl(val); if (inferred!=='unknown') type = inferred; }
+    if (type==='auto') type = 'image';
+    media.push({ label:displayName(h), type, url, raw:val });
+  });
+  return media;
+}
+
+// ============================================================
+// FILE LOADING
+// ============================================================
+const fileDrop = document.getElementById('fileDrop');
+const fileInput = document.getElementById('fileInput');
+fileDrop.addEventListener('click', ()=>fileInput.click());
+fileDrop.addEventListener('dragover', e=>{ e.preventDefault(); fileDrop.classList.add('dragover'); });
+fileDrop.addEventListener('dragleave', ()=>fileDrop.classList.remove('dragover'));
+fileDrop.addEventListener('drop', e=>{ e.preventDefault(); fileDrop.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
+['dragover','drop'].forEach(ev=>document.querySelector('.main-area').addEventListener(ev, e=>{
+  e.preventDefault();
+  if (ev==='drop' && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+}));
+document.getElementById('bgInput').addEventListener('change', e=>{
+  if (e.target.files[0]) setBackgroundFromFile(e.target.files[0]);
+  e.target.value='';
+});
+
+// Read files as data: URLs — blob: URLs are blocked by some sandbox CSPs
+// (e.g. the Claude.ai artifact iframe), which made file-picked backgrounds
+// fail silently while canvas-generated data-URL backgrounds worked.
+function fileToDataURL(f){
+  return new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = ()=>rej(new Error('read failed: '+f.name));
+    r.readAsDataURL(f);
+  });
+}
+function handleFiles(fileList){
+  const files = [...fileList];
+  let csvFile=null, imgs=[], mediaFiles=[];
+  const IMG_RE = /\.(png|jpe?g|gif|webp|svg)$/i;
+  const MED_RE = /\.(wav|mp3|ogg|flac|aac|m4a|opus|mp4|webm|ogv|mov|avi|mkv)$/i;
+  files.forEach(f=>{
+    if (/\.(csv|tsv)$/i.test(f.name)) csvFile = f;
+    else if (IMG_RE.test(f.name)) imgs.push(f);
+    else if (MED_RE.test(f.name)) mediaFiles.push(f);
+  });
+  const finish = async ()=>{
+    // Route images: referenced-by-CSV basenames are media; otherwise first unclaimed image = background
+    const referenced = new Set();
+    S.data.forEach(r=>S.headers.forEach(h=>{
+      const v = r[h]; if (v) referenced.add(v.split('/').pop());
+    }));
+    let bgAssigned = S.imageSet;
+    const mediaJobs = [...mediaFiles];
+    for (const f of imgs){
+      if (!referenced.has(f.name) && !bgAssigned){
+        bgAssigned = true;
+        try { setBackground(await fileToDataURL(f), false); }
+        catch(e){ setStatus('inputStatus','err','Could not read image: '+escHtml(f.name)); }
+      } else mediaJobs.push(f);
+    }
+    try {
+      await Promise.all(mediaJobs.map(async f=>{ S.media[f.name] = await fileToDataURL(f); }));
+    } catch(e){ setStatus('inputStatus','warn','Some media files could not be read.'); }
+    const bits = [];
+    if (csvFile) bits.push(`CSV: ${S.data.length} rows, ${S.headers.length} columns`);
+    if (imgs.length||mediaFiles.length) bits.push(`${imgs.length+mediaFiles.length} image/media file(s)`);
+    if (bits.length) setStatus('inputStatus','ok', bits.join(' • '));
+    renderAll();
+  };
+  if (csvFile){
+    S.datasetName = csvFile.name;
+    csvFile.text().then(text=>{ ingestCSV(text); finish(); });
+  } else finish();
+}
+function setBackgroundFromFile(f){
+  fileToDataURL(f)
+    .then(url=>setBackground(url, false))
+    .catch(()=>setStatus('inputStatus','err','Could not read the selected image file.'));
+}
+function setBackground(url, isFrame){
+  const img = document.getElementById('bgImage');
+  img.onload = ()=>{
+    S.imgW = img.naturalWidth; S.imgH = img.naturalHeight;
+    S.imageUrl = url; S.isFrame = !!isFrame; S.imageSet = true;
+    setStatus('inputStatus','ok', `Background set (${S.imgW}×${S.imgH}px).`);
+    renderAll();
+  };
+  img.onerror = ()=>{
+    setStatus('inputStatus','err','Background image failed to load — try a standard PNG or JPG.');
+  };
+  img.src = url;
+}
+function useBlankFrame(){
+  const cv = document.createElement('canvas'); cv.width=900; cv.height=640;
+  const g = cv.getContext('2d');
+  g.fillStyle='#ffffff'; g.fillRect(0,0,900,640);
+  g.strokeStyle='#222'; g.lineWidth=2; g.strokeRect(1,1,898,638);
+  g.strokeStyle='#e3e3e3'; g.lineWidth=1;
+  for (let i=1;i<10;i++){ g.beginPath(); g.moveTo(i*90,0); g.lineTo(i*90,640); g.stroke(); }
+  for (let i=1;i<8;i++){ g.beginPath(); g.moveTo(0,i*80); g.lineTo(900,i*80); g.stroke(); }
+  setBackground(cv.toDataURL(), true);
+  setStatus('inputStatus','ok','Blank plot frame created (900×640). Calibrate edges to your data ranges. The faint gridlines belong to the frame image itself — the data-space graticule is the separate toggle under Display.');
+}
+const CALIB_MARKER = '__PLEWMAP_CALIB__';
+function ingestCSV(text){
+  const { headers, data } = parseCSV(text);
+  // Extract embedded calibration row(s): marker in the first column, JSON payload in the second
+  S.pendingCalib = null;
+  const realData = [];
+  data.forEach(row=>{
+    if (headers.length && row[headers[0]] === CALIB_MARKER){
+      try { S.pendingCalib = JSON.parse((headers.length>1 && row[headers[1]]) || '{}'); }
+      catch(e){ S.pendingCalib = { _error:true }; }
+    } else realData.push(row);
+  });
+  realData.forEach((r,i)=>{ r._index = i; });
+  S.headers = headers; S.data = realData;
+  classifyColumns();
+  guessLocColumns();
+  S.calib.valid=false; S.calib.affine=null; S.calib.pts=[mkPt(),mkPt(),mkPt()]; S.calib.placing=-1;
+  S.enc.color.catColors = {};
+  autoAssignEncodings();
+  populateLocSelectors();
+  populateEncSelectors();
+  applyEmbeddedCalib();
+}
+function applyEmbeddedCalib(){
+  const c = S.pendingCalib;
+  if (!c) return;
+  S.pendingCalib = null;
+  if (c._error){
+    setStatus('calibStatus','warn','Found an embedded calibration row but its payload could not be parsed — falling back to defaults. Recalibrate and Save to CSV to repair it.');
+    return;
+  }
+  // Restore location assignment + Mercator
+  if (c.locX && S.headers.includes(c.locX)) document.getElementById('locXSel').value = c.locX;
+  if (c.locY && S.headers.includes(c.locY)) document.getElementById('locYSel').value = c.locY;
+  document.getElementById('mercChk').checked = !!c.mercator;
+  onLocChange(true);
+  // Restore calibration mode + parameters
+  const mode = c.mode==='affine' ? 'affine' : c.mode==='pixels' ? 'pixels' : 'edges';
+  document.querySelectorAll('input[name=calibMode]').forEach(r=>{ r.checked = (r.value===mode); });
+  setCalibMode(mode);
+  if (mode==='edges' && [c.L,c.R,c.T,c.B].every(v=>Number.isFinite(Number(v)))){
+    document.getElementById('edgeL').value = c.L;
+    document.getElementById('edgeR').value = c.R;
+    document.getElementById('edgeT').value = c.T;
+    document.getElementById('edgeB').value = c.B;
+    S.calib.prefilled = false;
+  } else if (mode==='affine' && Array.isArray(c.pts) && c.pts.length===3){
+    S.calib.pts = c.pts.map(p=>({ px:Number(p.px), py:Number(p.py), dx:Number(p.dx), dy:Number(p.dy) }));
+    renderCalibPts();
+  }
+  applyCalibration(true);
+  if (S.calib.valid) setStatus('calibStatus','ok','✓ Calibration loaded from the embedded CSV row ('+mode+(c.mercator?', Mercator':'')+'). Edit anything to override, or Reset to defaults to discard.');
+  else setStatus('calibStatus','warn','An embedded calibration row was found but its values are incomplete — falling back to defaults.');
+}
+
+// ============================================================
+// STEP 1 — LOCATION
+// ============================================================
+function populateLocSelectors(){
+  const opts = S.headers.map(h=>`<option value="${escAttr(h)}">${escHtml(displayName(h))}${S.cols[h].numeric?'':' (non-numeric)'}</option>`).join('');
+  document.getElementById('locXSel').innerHTML = opts;
+  document.getElementById('locYSel').innerHTML = opts;
+  if (S.locX) document.getElementById('locXSel').value = S.locX;
+  if (S.locY) document.getElementById('locYSel').value = S.locY;
+  onLocChange(true);
+}
+function onLocChange(silent){
+  S.locX = document.getElementById('locXSel').value;
+  S.locY = document.getElementById('locYSel').value;
+  S.mercator = document.getElementById('mercChk').checked;
+  const bad = S.data.filter(r=>!Number.isFinite(Number(r[S.locX])) || !Number.isFinite(Number(r[S.locY]))).length;
+  S.skipped = bad;
+  const el = document.getElementById('locStatus');
+  if (bad>0) setStatus('locStatus','warn', `${bad} row(s) have non-numeric coordinates and will be skipped.`);
+  else el.className='status';
+  prefillEdges();
+  applyCalibration(true);
+  renderAll();
+}
+function colRange(key){
+  const nums = S.data.map(r=>Number(r[key])).filter(Number.isFinite);
+  return nums.length ? [Math.min(...nums), Math.max(...nums)] : [0,1];
+}
+function computeDefaultEdges(){
+  if (!S.locX || !S.locY) return null;
+  const [x0,x1] = colRange(S.locX), [y0,y1] = colRange(S.locY);
+  const padX = (x1-x0)*0.06 || 1, padY = (y1-y0)*0.06 || 1;
+  // y: assume y-up data (lat-like) → top gets the max
+  return { L:round4(x0-padX), R:round4(x1+padX), T:round4(y1+padY), B:round4(y0-padY) };
+}
+function prefillEdges(){
+  const d = computeDefaultEdges();
+  if (!d) return;
+  S.calib.autoDefaults = d;
+  const E = S.calib.edges;
+  if (E.L!==null) return; // don't clobber user input
+  document.getElementById('edgeL').value = d.L;
+  document.getElementById('edgeR').value = d.R;
+  document.getElementById('edgeT').value = d.T;
+  document.getElementById('edgeB').value = d.B;
+  S.calib.prefilled = true;
+}
+function edgeEdited(){
+  S.calib.prefilled = false;
+  applyCalibration();
+}
+function resetCalibration(){
+  const d = S.calib.autoDefaults || computeDefaultEdges();
+  if (d){
+    document.getElementById('edgeL').value = d.L;
+    document.getElementById('edgeR').value = d.R;
+    document.getElementById('edgeT').value = d.T;
+    document.getElementById('edgeB').value = d.B;
+  }
+  S.calib.edges = {L:null,R:null,T:null,B:null};
+  S.calib.pts = [mkPt(),mkPt(),mkPt()];
+  S.calib.affine = null;
+  S.calib.placing = -1;
+  S.calib.prefilled = true;
+  document.getElementById('mapStage').classList.remove('placing');
+  if (S.calib.mode==='affine') renderCalibPts();
+  applyCalibration();
+}
+function round4(v){ return Math.round(v*10000)/10000; }
+
+// ============================================================
+// STEP 2 — CALIBRATION
+// ============================================================
+function setCalibMode(mode){
+  S.calib.mode = mode;
+  document.getElementById('calibEdges').style.display = mode==='edges'?'':'none';
+  document.getElementById('calibAffine').style.display = mode==='affine'?'':'none';
+  document.getElementById('calibPixels').style.display = mode==='pixels'?'':'none';
+  if (mode==='affine') renderCalibPts();
+  S.calib.placing = -1;
+  document.getElementById('mapStage').classList.remove('placing');
+  applyCalibration();
+}
+function applyCalibration(silent){
+  const C = S.calib;
+  if (C.mode==='edges'){
+    C.edges.L = numOrNull('edgeL'); C.edges.R = numOrNull('edgeR');
+    C.edges.T = numOrNull('edgeT'); C.edges.B = numOrNull('edgeB');
+    const vals = [C.edges.L,C.edges.R,C.edges.T,C.edges.B];
+    C.valid = vals.every(v=>v!==null) && C.edges.L!==C.edges.R && C.edges.T!==C.edges.B;
+    if (C.valid) setStatus('calibStatus', C.prefilled?'warn':'ok', `Edges set: X ∈ [${C.edges.L}, ${C.edges.R}], Y ∈ [${C.edges.B}, ${C.edges.T}]${S.mercator?' (Mercator y)':''}${C.prefilled?'<br><b>Prefilled from the data range (approximate)</b> — type the image\'s true bounds for accurate placement.':''}`);
+    else if (!silent) setStatus('calibStatus','warn','Enter all four edge values (left ≠ right, top ≠ bottom).');
+  } else if (C.mode==='affine'){
+    C.affine = solveAffine();
+    C.valid = !!(C.affine && !C.affine.degenerate);
+    if (C.valid) setStatus('calibStatus','ok','Affine transform solved from 3 reference points.');
+    else if (C.affine && C.affine.degenerate) setStatus('calibStatus','err','Reference points are collinear — spread them out.');
+    else if (!silent) setStatus('calibStatus','warn','Place 3 points and fill in their data coordinates.');
+  } else {
+    C.valid = true;
+    setStatus('calibStatus','ok','Coordinates interpreted as image pixels.');
+  }
+  renderAll();
+}
+function numOrNull(id){
+  const v = document.getElementById(id).value;
+  return v==='' ? null : Number(v);
+}
+function renderCalibPts(){
+  const wrap = document.getElementById('calibPtsList');
+  wrap.innerHTML = S.calib.pts.map((p,i)=>`
+    <div class="calib-pt">
+      <div class="pt-head">
+        <span class="pt-tag">Point ${i+1}</span>
+        <span class="pt-px">${p.px!==null ? `px (${Math.round(p.px)}, ${Math.round(p.py)})` : 'not placed'}</span>
+        <button class="btn" onclick="startPlacing(${i})">${p.px!==null?'Re-place':'Place on image'}</button>
+      </div>
+      <div class="row2">
+        <div><label class="field">Data X</label><input type="number" step="any" value="${p.dx??''}" onchange="setPtData(${i},'dx',this.value)"></div>
+        <div><label class="field">Data Y</label><input type="number" step="any" value="${p.dy??''}" onchange="setPtData(${i},'dy',this.value)"></div>
+      </div>
+    </div>`).join('');
+}
+function startPlacing(i){
+  S.calib.placing = i;
+  document.getElementById('mapStage').classList.add('placing');
+  setStatus('calibStatus','warn',`Click on the image to place point ${i+1}.`);
+}
+function setPtData(i, field, val){
+  S.calib.pts[i][field] = val==='' ? null : Number(val);
+  applyCalibration();
+}
+document.getElementById('overlay').addEventListener('click', e=>{
+  if (S.calib.placing < 0) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const px = (e.clientX-rect.left)/rect.width * S.imgW;
+  const py = (e.clientY-rect.top)/rect.height * S.imgH;
+  const p = S.calib.pts[S.calib.placing];
+  p.px = px; p.py = py;
+  S.calib.placing = -1;
+  document.getElementById('mapStage').classList.remove('placing');
+  renderCalibPts();
+  applyCalibration();
+});
+
+// ============================================================
+// STEP 3 — ENCODINGS
+// ============================================================
+function encCandidates(){
+  return S.headers.filter(h=>{
+    const c = S.cols[h];
+    if (h===S.locX || h===S.locY) return false;
+    if (['loc','med','desc','res'].includes(c.role)) return false;
+    if (c.role==='auto'){
+      const dn = displayName(h).toLowerCase();
+      if (RESERVED_COLUMNS.some(rc=>dn.includes(rc))) return false;
+      if (c.uniq.length===S.data.length && !c.numeric) return false; // ID-like
+    }
+    return true;
+  }).sort((a,b)=>{
+    const pa = S.cols[a].role==='dim'?0:1, pb = S.cols[b].role==='dim'?0:1;
+    return pa-pb;
+  });
+}
+function autoAssignEncodings(){
+  const cands = encCandidates();
+  const cats = cands.filter(h=>!S.cols[h].numeric);
+  const nums = cands.filter(h=>S.cols[h].numeric);
+  S.enc.color.col = cats[0] || nums[0] || '';
+  S.enc.color.type = S.enc.color.col && S.cols[S.enc.color.col].numeric ? 'continuous' : 'categorical';
+  S.enc.shape.col = cats.find(h=>h!==S.enc.color.col && S.cols[h].uniq.length<=SHAPES.length) || '';
+  S.enc.size.col = '';
+  S.enc.size.type = 'continuous';
+}
+function populateEncSelectors(){
+  const cands = encCandidates();
+  const optHtml = (allowed)=> '<option value="">— none —</option>' + allowed.map(h=>{
+    const c = S.cols[h];
+    const tag = c.role==='dim' ? ' [dim]' : '';
+    const kind = c.numeric ? 'numeric' : `${c.uniq.length} values`;
+    return `<option value="${escAttr(h)}">${escHtml(displayName(h))}${tag} (${kind})</option>`;
+  }).join('');
+  document.getElementById('colorSel').innerHTML = optHtml(cands);
+  document.getElementById('sizeSel').innerHTML = optHtml(cands);
+  document.getElementById('shapeSel').innerHTML = optHtml(cands.filter(h=>!S.cols[h].numeric || S.cols[h].uniq.length<=8));
+  document.getElementById('colorSel').value = S.enc.color.col;
+  document.getElementById('sizeSel').value = S.enc.size.col;
+  document.getElementById('shapeSel').value = S.enc.shape.col;
+  syncEncControls();
+}
+function onEncChange(){
+  S.enc.color.col = document.getElementById('colorSel').value;
+  S.enc.size.col = document.getElementById('sizeSel').value;
+  S.enc.shape.col = document.getElementById('shapeSel').value;
+  S.enc.color.ramp = document.getElementById('rampSel').value;
+  // keep type sane per column
+  ['color','size'].forEach(ch=>{
+    const col = S.enc[ch].col;
+    if (col && !S.cols[col].numeric) S.enc[ch].type = 'categorical';
+  });
+  syncEncControls();
+  renderAll();
+}
+function setEncType(ch, type){
+  S.enc[ch].type = type;
+  syncEncControls();
+  renderAll();
+}
+function syncEncControls(){
+  const cc = S.enc.color.col, sc = S.enc.size.col;
+  const colorNumeric = cc && S.cols[cc].numeric;
+  document.getElementById('colorTypeRow').style.display = colorNumeric ? 'flex' : 'none';
+  if (cc && !colorNumeric) S.enc.color.type='categorical';
+  document.querySelectorAll('input[name=colorType]').forEach(r=>r.checked = r.value===S.enc.color.type);
+  document.getElementById('rampRow').style.display = (cc && S.enc.color.type==='continuous') ? '' : 'none';
+  document.getElementById('customRamp').style.display = document.getElementById('rampSel').value==='custom' ? 'flex' : 'none';
+  const sizeNumeric = sc && S.cols[sc].numeric;
+  document.getElementById('sizeTypeRow').style.display = sizeNumeric ? 'flex' : 'none';
+  if (sc && !sizeNumeric) S.enc.size.type='categorical';
+  document.querySelectorAll('input[name=sizeType]').forEach(r=>r.checked = r.value===S.enc.size.type);
+  document.getElementById('sizeRange').style.display = sc ? 'grid' : 'none';
+  const shc = S.enc.shape.col;
+  if (shc && S.cols[shc].uniq.length > SHAPES.length)
+    setStatus('encStatus','warn',`Shape column has ${S.cols[shc].uniq.length} values; only ${SHAPES.length} distinct shapes — they will repeat.`);
+  else document.getElementById('encStatus').className='status';
+}
+
+// ── color/size/shape value → visual ──
+function hexToRgb(h){ const m=h.replace('#',''); return [parseInt(m.slice(0,2),16),parseInt(m.slice(2,4),16),parseInt(m.slice(4,6),16)]; }
+function lerpColor(stops, t){
+  t = Math.max(0, Math.min(1, t));
+  const seg = t*(stops.length-1);
+  const i = Math.min(Math.floor(seg), stops.length-2);
+  const f = seg - i;
+  const a = hexToRgb(stops[i]), b = hexToRgb(stops[i+1]);
+  const c = a.map((v,k)=>Math.round(v + (b[k]-v)*f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+function activeRamp(){
+  if (S.enc.color.ramp==='custom') return [document.getElementById('rampA').value, document.getElementById('rampB').value];
+  return RAMPS[S.enc.color.ramp] || VIRIDIS;
+}
+function colorFor(row){
+  const col = S.enc.color.col;
+  if (!col) return COLORS[0];
+  const v = row[col];
+  if (S.enc.color.type==='continuous'){
+    const [mn,mx] = colRange(col);
+    const t = mx===mn ? 0.5 : (Number(v)-mn)/(mx-mn);
+    return lerpColor(activeRamp(), t);
+  }
+  const uniq = S.cols[col].uniq;
+  if (S.enc.color.catColors[v]) return S.enc.color.catColors[v];
+  return COLORS[uniq.indexOf(v) % COLORS.length];
+}
+function sizeFor(row){
+  const base = Number(document.getElementById('baseSize').value);
+  const col = S.enc.size.col;
+  if (!col) return base;
+  const mnP = Number(document.getElementById('sizeMin').value)||4;
+  const mxP = Number(document.getElementById('sizeMax').value)||16;
+  if (S.enc.size.type==='continuous'){
+    const [mn,mx] = colRange(col);
+    const t = mx===mn ? 0.5 : (Number(row[col])-mn)/(mx-mn);
+    return mnP + t*(mxP-mnP);
+  }
+  const uniq = S.cols[col].uniq;
+  const n = Math.max(uniq.length-1, 1);
+  return mnP + (uniq.indexOf(row[col])/n)*(mxP-mnP);
+}
+function shapeFor(row){
+  const col = S.enc.shape.col;
+  if (!col) return 'circle';
+  const uniq = S.cols[col].uniq;
+  return SHAPES[uniq.indexOf(row[col]) % SHAPES.length];
+}
+function setCatColor(value, hex){
+  S.enc.color.catColors[value] = hex;
+  renderAll();
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+const SVGNS = 'http://www.w3.org/2000/svg';
+function shapeEl(shape, x, y, r){
+  let el;
+  if (shape==='circle'){ el = document.createElementNS(SVGNS,'circle'); el.setAttribute('cx',x); el.setAttribute('cy',y); el.setAttribute('r',r); }
+  else if (shape==='square'){ el = document.createElementNS(SVGNS,'rect'); el.setAttribute('x',x-r); el.setAttribute('y',y-r); el.setAttribute('width',2*r); el.setAttribute('height',2*r); }
+  else if (shape==='diamond'){ el = document.createElementNS(SVGNS,'path'); el.setAttribute('d',`M ${x} ${y-r*1.2} L ${x+r*1.2} ${y} L ${x} ${y+r*1.2} L ${x-r*1.2} ${y} Z`); }
+  else { el = document.createElementNS(SVGNS,'path'); el.setAttribute('d',`M ${x} ${y-r*1.25} L ${x+r*1.15} ${y+r*0.85} L ${x-r*1.15} ${y+r*0.85} Z`); }
+  return el;
+}
+function renderAll(){
+  const ready = S.data.length>0;
+  document.getElementById('locSection').style.display = ready?'':'none';
+  document.getElementById('calibSection').style.display = (ready && S.imageSet)?'':'none';
+  const plotReady = ready && S.imageSet && S.calib.valid && S.locX && S.locY;
+  document.getElementById('encSection').style.display = plotReady?'':'none';
+  document.getElementById('dispSection').style.display = plotReady?'':'none';
+  document.getElementById('legendSection').style.display = plotReady?'':'none';
+  document.getElementById('exportSection').style.display = plotReady?'':'none';
+  const es = document.getElementById('emptyState');
+  es.style.display = (ready&&S.imageSet)?'none':'';
+  if (ready && !S.imageSet){
+    es.innerHTML = `<div class="big">🖼️</div><b style="color:#4ecdc4;">CSV loaded</b> — ${S.data.length} rows, ${S.headers.length} columns.<br>Now add a background: <b>drop an image here or on the sidebar</b>, press <b>Set background…</b>, or <b>No background</b> for a plain frame.<br>Calibration (Step 2) unlocks as soon as an image is in place.`;
+  } else if (!ready){
+    es.innerHTML = `<div class="big">🗺️</div>Upload a CSV and a background image to begin —<br>or press a <b style="color:#4ecdc4;">Demo</b> button in the sidebar to see plew-map reproduce an atlas-style language map and a TOEIC fluency scatter.`;
+  }
+  document.getElementById('mapStage').style.display = S.imageSet?'inline-block':'none';
+  document.getElementById('mapHeader').style.display = S.imageSet?'flex':'none';
+  document.getElementById('mapTitle').textContent = S.datasetName || 'plew-map';
+
+  const svg = document.getElementById('overlay');
+  svg.setAttribute('viewBox', `0 0 ${S.imgW||1} ${S.imgH||1}`);
+  svg.innerHTML = '';
+  if (!S.imageSet) return;
+
+  // calibration markers
+  if (S.calib.mode==='affine'){
+    S.calib.pts.forEach((p,i)=>{
+      if (p.px===null) return;
+      const g = document.createElementNS(SVGNS,'g');
+      const R = Math.max(S.imgW,S.imgH)*0.012;
+      [[p.px-R,p.py,p.px+R,p.py],[p.px,p.py-R,p.px,p.py+R]].forEach(([x1,y1,x2,y2])=>{
+        const l = document.createElementNS(SVGNS,'line');
+        l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+        l.setAttribute('stroke','#ffd93d'); l.setAttribute('stroke-width',Math.max(1.5,R*0.18));
+        g.appendChild(l);
+      });
+      const t = document.createElementNS(SVGNS,'text');
+      t.setAttribute('x',p.px+R*0.7); t.setAttribute('y',p.py-R*0.7);
+      t.setAttribute('fill','#ffd93d'); t.setAttribute('font-size',R*1.4); t.setAttribute('font-weight','700');
+      t.textContent = i+1;
+      g.appendChild(t);
+      svg.appendChild(g);
+    });
+  }
+
+  if (!plotReady){ renderLegend(); updateMeta(0); return; }
+
+  const opacity = Number(document.getElementById('opacity').value);
+  const stroke = document.getElementById('strokeChk').checked;
+  const scale = S.imgW / (document.getElementById('mapStage').getBoundingClientRect().width || S.imgW);
+  const baseR = Number(document.getElementById('baseSize').value);
+  const k = baseR / 9;   // global multiplier from the size slider
+  const ringMode = !!S.enc.size.col && document.getElementById('ringChk').checked;
+  drawGraticule(svg, scale);
+  let plotted = 0;
+  S.data.forEach(row=>{
+    const pt = dataToPixel(row[S.locX], row[S.locY]);
+    if (!pt) return;
+    const [px,py] = pt;
+    if (px < -S.imgW*0.2 || px > S.imgW*1.2 || py < -S.imgH*0.2 || py > S.imgH*1.2) return;
+    const encR = sizeFor(row);
+    let rFill;
+    if (!S.enc.size.col) rFill = baseR;            // slider = radius directly
+    else if (ringMode)   rFill = baseR * 0.8;      // fixed dot; size lives in the ring
+    else                 rFill = encR * k;         // slider scales the encoded range
+    const r = Math.max(1, rFill) * scale;
+    const el = shapeEl(shapeFor(row), px, py, r);
+    el.setAttribute('fill', colorFor(row));
+    el.setAttribute('fill-opacity', opacity);
+    if (stroke){ el.setAttribute('stroke', '#1a1f26'); el.setAttribute('stroke-width', Math.max(0.75*scale, r*0.12)); }
+    el.classList.add('pt-shape');
+    el.addEventListener('mouseenter', e=>showTooltip(e,row));
+    el.addEventListener('mousemove', moveTooltip);
+    el.addEventListener('mouseleave', hideTooltip);
+    el.addEventListener('click', e=>{ if (S.calib.placing<0){ hideTooltip(); openModal(row); } });
+    svg.appendChild(el);
+    if (ringMode){
+      const ringR = Math.max(encR * k, rFill + 2) * scale;
+      const ring = document.createElementNS(SVGNS,'circle');
+      ring.setAttribute('cx',px); ring.setAttribute('cy',py); ring.setAttribute('r',ringR);
+      ring.setAttribute('fill','none');
+      ring.setAttribute('stroke','#22303a');
+      ring.setAttribute('stroke-width', Math.max(1*scale, ringR*0.09));
+      ring.setAttribute('stroke-opacity', Math.min(1, opacity+0.1));
+      ring.setAttribute('pointer-events','none');
+      svg.appendChild(ring);
+    }
+    plotted++;
+  });
+  renderLegend();
+  updateMeta(plotted);
+}
+function updateMeta(plotted){
+  const bits = [`${S.data.length} rows`];
+  if (plotted) bits.push(`${plotted} plotted`);
+  if (S.skipped) bits.push(`${S.skipped} skipped`);
+  if (S.mercator) bits.push('Mercator y');
+  bits.push(`calibration: ${S.calib.mode}`);
+  document.getElementById('mapMeta').textContent = bits.join(' • ');
+}
+function onDisplayChange(){
+  document.getElementById('baseSizeVal').textContent = document.getElementById('baseSize').value;
+  document.getElementById('opacityVal').textContent = document.getElementById('opacity').value;
+  document.getElementById('ringHint').style.display = document.getElementById('ringChk').checked ? '' : 'none';
+  document.getElementById('gratHint').style.display = document.getElementById('gratChk').checked ? '' : 'none';
+  renderAll();
+}
+
+// ── Graticule: constant-x and constant-y lines sampled through the calibration ──
+function niceStep(range){
+  const raw = Math.abs(range)/6 || 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw/p;
+  return (m<1.5 ? 1 : m<3.5 ? 2 : m<7.5 ? 5 : 10)*p;
+}
+function drawGraticule(svg, scale){
+  if (!document.getElementById('gratChk').checked) return;
+  if (S.calib.mode==='pixels' || !S.calib.valid || !S.locX || !S.locY) return;
+  let x0,x1,y0,y1;
+  if (S.calib.mode==='edges'){
+    const E = S.calib.edges;
+    x0=Math.min(E.L,E.R); x1=Math.max(E.L,E.R);
+    y0=Math.min(E.T,E.B); y1=Math.max(E.T,E.B);
+  } else {
+    const [a,b]=colRange(S.locX), [c,d]=colRange(S.locY);
+    const padx=(b-a)*0.15||1, pady=(d-c)*0.15||1;
+    x0=a-padx; x1=b+padx; y0=c-pady; y1=d+pady;
+  }
+  const sx=niceStep(x1-x0), sy=niceStep(y1-y0);
+  const g = document.createElementNS(SVGNS,'g');
+  g.setAttribute('pointer-events','none');
+  const addLine = (pts,label,lx,ly)=>{
+    if (pts.length<2) return;
+    const pl = document.createElementNS(SVGNS,'polyline');
+    pl.setAttribute('points', pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '));
+    pl.setAttribute('fill','none'); pl.setAttribute('stroke','#6d84a0');
+    pl.setAttribute('stroke-width', Math.max(0.8*scale,0.8));
+    pl.setAttribute('stroke-opacity','0.5');
+    pl.setAttribute('stroke-dasharray', (4*scale)+' '+(4*scale));
+    g.appendChild(pl);
+    const t = document.createElementNS(SVGNS,'text');
+    t.setAttribute('x',lx); t.setAttribute('y',ly);
+    t.setAttribute('fill','#5d7186'); t.setAttribute('font-size',11*scale);
+    t.textContent = label;
+    g.appendChild(t);
+  };
+  const N = 40;
+  for (let x=Math.ceil(x0/sx)*sx; x<=x1+1e-9; x+=sx){
+    const pts=[];
+    for (let i=0;i<=N;i++){ const p=dataToPixel(x, y0+(y1-y0)*i/N); if (p) pts.push(p); }
+    if (pts.length>1){
+      const top = pts.reduce((a,b)=>a[1]<b[1]?a:b);
+      addLine(pts, round4(x), top[0]+3*scale, top[1]+13*scale);
+    }
+  }
+  for (let y=Math.ceil(y0/sy)*sy; y<=y1+1e-9; y+=sy){
+    const pts=[];
+    for (let i=0;i<=N;i++){ const p=dataToPixel(x0+(x1-x0)*i/N, y); if (p) pts.push(p); }
+    if (pts.length>1){
+      const left = pts.reduce((a,b)=>a[0]<b[0]?a:b);
+      addLine(pts, round4(y), left[0]+4*scale, left[1]-3*scale);
+    }
+  }
+  svg.appendChild(g);
+}
+window.addEventListener('resize', ()=>{ if (S.imageSet) renderAll(); });
+
+// ── Legend ──
+function renderLegend(){
+  const body = document.getElementById('legendBody');
+  let html = '';
+  const cc = S.enc.color.col;
+  if (cc){
+    html += `<div class="legend-sub">Color · ${escHtml(displayName(cc))}</div>`;
+    if (S.enc.color.type==='continuous'){
+      const stops = activeRamp();
+      const grad = stops.map((s,i)=>`${s} ${Math.round(i/(stops.length-1)*100)}%`).join(', ');
+      const [mn,mx] = colRange(cc);
+      html += `<div class="grad-bar" style="background:linear-gradient(90deg, ${grad});"></div>
+               <div class="grad-labels"><span>${round4(mn)}</span><span>${round4(mx)}</span></div>`;
+    } else {
+      S.cols[cc].uniq.forEach(v=>{
+        const c = S.enc.color.catColors[v] || COLORS[S.cols[cc].uniq.indexOf(v)%COLORS.length];
+        const hex = c.startsWith('#') ? c : '#4ecdc4';
+        html += `<div class="legend-item"><span class="legend-swatch" style="background:${c}"></span>${escHtml(v)||'<i>(empty)</i>'}
+                 <input type="color" value="${hex}" title="Customize" data-v="${escAttr(v)}" onchange="setCatColor(this.dataset.v, this.value)"></div>`;
+      });
+    }
+  }
+  const sc = S.enc.size.col;
+  if (sc){
+    const [mn,mx] = colRange(sc);
+    const mnP = Number(document.getElementById('sizeMin').value)||4, mxP = Number(document.getElementById('sizeMax').value)||16;
+    const mdP = (mnP+mxP)/2;
+    html += `<div class="legend-sub">Size · ${escHtml(displayName(sc))}</div>
+      <div class="size-legend"><svg width="220" height="${mxP*2+26}" viewBox="0 0 220 ${mxP*2+26}">
+        <circle cx="${mxP+4}" cy="${mxP+4}" r="${mnP}" fill="none" stroke="#8a949e"/>
+        <circle cx="${mxP*2+30}" cy="${mxP+4}" r="${mdP}" fill="none" stroke="#8a949e"/>
+        <circle cx="${mxP*3.5+56}" cy="${mxP+4}" r="${mxP}" fill="none" stroke="#8a949e"/>
+        <text x="${mxP+4}" y="${mxP*2+22}" fill="#8a949e" font-size="10" text-anchor="middle">${S.enc.size.type==='continuous'?round4(mn):'first'}</text>
+        <text x="${mxP*3.5+56}" y="${mxP*2+22}" fill="#8a949e" font-size="10" text-anchor="middle">${S.enc.size.type==='continuous'?round4(mx):'last'}</text>
+      </svg></div>`;
+  }
+  const shc = S.enc.shape.col;
+  if (shc){
+    html += `<div class="legend-sub">Shape · ${escHtml(displayName(shc))}</div>`;
+    S.cols[shc].uniq.forEach((v,i)=>{
+      const sh = SHAPES[i%SHAPES.length];
+      html += `<div class="legend-item"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeGlyph(sh)}</svg>${escHtml(v)}</div>`;
+    });
+  }
+  body.innerHTML = html || '<div class="hint">Choose columns above to build the legend.</div>';
+}
+function shapeGlyph(sh){
+  const s = 'fill="none" stroke="#cfd6dd" stroke-width="1.6"';
+  if (sh==='circle') return `<circle cx="0" cy="0" r="6" ${s}/>`;
+  if (sh==='square') return `<rect x="-6" y="-6" width="12" height="12" ${s}/>`;
+  if (sh==='diamond') return `<path d="M 0 -7 L 7 0 L 0 7 L -7 0 Z" ${s}/>`;
+  return `<path d="M 0 -7 L 6.5 5 L -6.5 5 Z" ${s}/>`;
+}
+
+// ============================================================
+// TOOLTIP & MODAL (PLeW contract)
+// ============================================================
+function excludeFromTooltip(h){
+  const c = S.cols[h];
+  if (['med','desc','res','loc'].includes(c.role)) return true;
+  if (c.role==='auto' && isMediaName(h)) return true;
+  if (h===S.locX || h===S.locY) return true;
+  return false;
+}
+function excludeFromModal(h){
+  const c = S.cols[h];
+  if (['med','res'].includes(c.role)) return true;
+  if (c.role==='auto' && isMediaName(h)) return true;
+  return false;
+}
+function modalTitle(row){
+  for (const h of S.headers){
+    const dn = displayName(h).toLowerCase();
+    if (dn==='title' || dn==='name') return row[h] || `Record #${row._index+1}`;
+  }
+  for (const h of S.headers){
+    const dn = displayName(h).toLowerCase();
+    if (dn==='id' || dn.endsWith('id')) return row[h] || `Record #${row._index+1}`;
+  }
+  return `Record #${row._index+1}`;
+}
+function showTooltip(e,row){
+  const tip = document.getElementById('tooltip');
+  const fields = S.headers.filter(h=>!excludeFromTooltip(h)).slice(0,5);
+  let html = fields.map(h=>`<strong>${escHtml(displayName(h))}:</strong> ${escHtml(row[h])}`).join('<br>');
+  const media = getRowMedia(row);
+  html += `<div class="tooltip-hint">`;
+  if (media.length){
+    const icons = [...new Set(media.map(m=>m.type==='video'?'🎬':m.type==='audio'?'🎵':'📷'))].join('');
+    html += `${icons} `;
+  }
+  html += `Click for record</div>`;
+  tip.innerHTML = html;
+  tip.classList.add('visible');
+  moveTooltip(e);
+}
+function moveTooltip(e){
+  const tip = document.getElementById('tooltip');
+  const x = Math.min(e.clientX+14, window.innerWidth-300);
+  tip.style.left = x+'px';
+  tip.style.top = (e.clientY+14)+'px';
+}
+function hideTooltip(){ document.getElementById('tooltip').classList.remove('visible'); }
+
+function openModal(row){
+  document.getElementById('modalTitle').textContent = modalTitle(row);
+  let html = '<table class="data-table">';
+  S.headers.forEach(h=>{
+    if (excludeFromModal(h)) return;
+    let val = escHtml(row[h]);
+    if (h===S.enc.color.col && S.enc.color.type==='categorical'){
+      const c = colorFor(row);
+      val = `<span style="background:${c}33;color:${c};padding:1px 8px;border-radius:10px;">${val}</span>`;
+    }
+    html += `<tr><td>${escHtml(displayName(h))}</td><td>${val}</td></tr>`;
+  });
+  html += '</table>';
+  const media = getRowMedia(row);
+  if (media.length){
+    html += `<div class="media-section"><div class="media-section-title">Media (${media.length})</div>`;
+    if (media.length>1){
+      html += `<div class="media-tabs">` + media.map((m,i)=>{
+        const icon = m.type==='video'?'🎬':m.type==='audio'?'🎵':'📷';
+        return `<button class="media-tab ${i===0?'active':''}" onclick="switchMediaTab(this,${i})">${icon} ${escHtml(m.label)}</button>`;
+      }).join('') + `</div>`;
+    }
+    html += media.map((m,i)=>`<div class="media-pane ${i===0?'active':''}" data-idx="${i}">${mediaHTML(m)}</div>`).join('');
+    html += `</div>`;
+  }
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function mediaHTML(m){
+  const yt = toYouTubeEmbed(m.url);
+  if (yt) return `<iframe src="${escAttr(yt)}" allowfullscreen></iframe>`;
+  if (m.type==='audio') return `<audio controls src="${escAttr(m.url)}"></audio>`;
+  if (m.type==='video') return `<video controls src="${escAttr(m.url)}"></video>`;
+  return `<img src="${escAttr(m.url)}" alt="${escAttr(m.label)}">`;
+}
+function switchMediaTab(btn, idx){
+  document.querySelectorAll('.media-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.media-pane').forEach(p=>p.classList.toggle('active', p.dataset.idx==idx));
+}
+function closeModal(e){
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('modalOverlay').classList.remove('active');
+  // stop any playing media
+  document.querySelectorAll('#modalBody audio, #modalBody video').forEach(m=>m.pause());
+  document.querySelectorAll('#modalBody iframe').forEach(f=>{ f.src = f.src; });
+}
+document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeModal(); });
+
+// ============================================================
+// EXPORT — Save to CSV (embeds calibration) & snapshot PNG
+// ============================================================
+function csvCell(v){
+  v = String(v ?? '');
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+}
+function buildCalibPayload(){
+  const c = { mode:S.calib.mode, mercator:S.mercator, locX:S.locX, locY:S.locY };
+  if (S.calib.mode==='edges') Object.assign(c, S.calib.edges);
+  if (S.calib.mode==='affine') c.pts = S.calib.pts.map(p=>({ px:round4(p.px), py:round4(p.py), dx:p.dx, dy:p.dy }));
+  return c;
+}
+function generateCSV(){
+  const lines = [ S.headers.map(csvCell).join(',') ];
+  S.data.forEach(row=>lines.push(S.headers.map(h=>csvCell(row[h])).join(',')));
+  if (S.calib.valid && S.headers.length>1){
+    const row = S.headers.map((h,i)=> i===0 ? CALIB_MARKER : i===1 ? JSON.stringify(buildCalibPayload()) : '');
+    lines.push(row.map(csvCell).join(','));
+  }
+  return lines.join('\n');
+}
+function exportBaseName(){
+  return (S.datasetName || 'plew-map').replace(/\.(csv|tsv)$/i,'').replace(/-calibrated$/,'');
+}
+function triggerDownload(href, filename){
+  const a = document.createElement('a');
+  a.href = href; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadCSV(){
+  if (!S.data.length) return;
+  if (!S.calib.valid){
+    setStatus('exportStatus','warn','No valid calibration yet — the CSV will download without an embedded calibration row.');
+  } else {
+    setStatus('exportStatus','ok','CSV saved with the calibration row embedded — re-uploading it auto-calibrates.');
+  }
+  triggerDownload('data:text/csv;charset=utf-8,' + encodeURIComponent(generateCSV()),
+                  exportBaseName() + '-calibrated.csv');
+}
+function downloadSnapshot(){
+  if (!S.imageSet) return;
+  const cv = document.createElement('canvas');
+  cv.width = S.imgW; cv.height = S.imgH;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0,0,S.imgW,S.imgH);
+  g.drawImage(document.getElementById('bgImage'), 0, 0, S.imgW, S.imgH);
+  const svg = document.getElementById('overlay').cloneNode(true);
+  svg.setAttribute('width', S.imgW);
+  svg.setAttribute('height', S.imgH);
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const xml = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  img.onload = ()=>{
+    g.drawImage(img, 0, 0, S.imgW, S.imgH);
+    try {
+      triggerDownload(cv.toDataURL('image/png'), exportBaseName() + '-snapshot.png');
+      setStatus('exportStatus','ok','Snapshot PNG saved at the image\'s native resolution.');
+    } catch(e){
+      setStatus('exportStatus','err','Snapshot failed: the canvas was blocked ('+escHtml(e.message)+').');
+    }
+  };
+  img.onerror = ()=>setStatus('exportStatus','err','Snapshot failed while rendering the point overlay.');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+}
+
+// ── utils ──
+function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function setStatus(id, cls, msg){
+  const el = document.getElementById(id);
+  el.className = 'status ' + cls;
+  el.innerHTML = msg;
+}
+
+// ============================================================
+// DEMO DATASETS
+// ============================================================
+function loadDemoALI(){
+  // Draw a province-like blob on a white canvas (atlas style)
+  const W=900, H=760;
+  const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g = cv.getContext('2d');
+  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+  g.fillStyle='#dcdcdc';
+  g.beginPath();
+  const blob = [[300,60],[420,90],[520,70],[640,140],[700,260],[660,380],[720,470],[680,600],[560,700],[430,690],[350,580],[260,520],[180,420],[120,300],[160,180],[230,100]];
+  g.moveTo(blob[0][0],blob[0][1]);
+  for (let i=1;i<blob.length;i++){
+    const [x,y]=blob[i], [px,py]=blob[i-1];
+    g.quadraticCurveTo(px,py,(px+x)/2,(py+y)/2);
+  }
+  g.closePath(); g.fill();
+  g.fillStyle='#333'; g.font='bold 22px Segoe UI, sans-serif';
+  g.fillText('Demo province — front rounded vowels', 22, 34);
+
+  // Geographic frame for the image edges
+  const L=49.6, R=51.7, T=32.9, B=31.0;
+  const toGeo = (px,py)=>[ round4(L + px/W*(R-L)), round4(T + py/H*(B-T)) ];
+  // Settlements in pixel space (inside the blob), inverted to lon/lat
+  const pts = [
+    [340,150,'Bakhtiari','none'], [470,180,'Charmahali','none'], [520,210,'Turkic','ü'],
+    [560,200,'Turkic','ö'], [600,240,'Charmahali','ü'], [630,255,'Turkic','ö'],
+    [380,260,'Bakhtiari','none'], [450,290,'Charmahali','none'], [500,320,'Charmahali','ü'],
+    [530,345,'Turkic','ü'], [560,350,'Turkic','ö'], [590,380,'Charmahali','ö'],
+    [420,380,'Bakhtiari','none'], [470,420,'Turkic','ü'], [505,425,'Turkic','ö'],
+    [330,460,'Bakhtiari','none'], [430,500,'Bakhtiari','none'], [560,470,'Bakhtiari','none'],
+    [620,510,'Turkic','ü'], [645,515,'Turkic','ö'], [610,545,'Charmahali','none'],
+    [480,560,'Bakhtiari','none'], [520,640,'Bakhtiari','none'], [640,430,'Turkic','none']
+  ];
+  const rows = pts.map((p,i)=>{
+    const [lon,lat] = toGeo(p[0],p[1]);
+    const vowel = p[3]==='ü' ? 'presence of /ü/' : p[3]==='ö' ? 'presence of /ö/' : 'no front rounded vowels';
+    return `S${String(i+1).padStart(2,'0')},${lon},${lat},${p[2]},${vowel},"Settlement ${i+1}: elicited wordlist, 2019 fieldwork.",https://youtu.be/dQw4w9WgXcQ`;
+  });
+  const csv = ['name,loc::lon,loc::lat,dim::language,dim::vowel,desc::note,med::video', ...rows].join('\n');
+  S.datasetName = 'demo-atlas.csv';
+  ingestCSV(csv);
+  setBackground(cv.toDataURL(), false);
+  // Prefill calibration + encodings to reproduce the atlas look
+  setTimeout(()=>{
+    document.getElementById('edgeL').value=L; document.getElementById('edgeR').value=R;
+    document.getElementById('edgeT').value=T; document.getElementById('edgeB').value=B;
+    S.calib.prefilled = false;
+    S.enc.shape.col='dim::language'; S.enc.color.col='dim::vowel'; S.enc.color.type='categorical'; S.enc.size.col='';
+    S.enc.color.catColors = { 'presence of /ü/':'#8bdb4d', 'presence of /ö/':'#5a8f3c', 'no front rounded vowels':'#ffffff' };
+    document.getElementById('ringChk').checked = false;
+    document.getElementById('gratChk').checked = false;
+    populateEncSelectors();
+    applyCalibration();
+    setStatus('inputStatus','ok','Atlas demo loaded: shape = language, color = vowel presence. Click a settlement for its record.');
+  }, 60);
+}
+
+function loadDemoTOEIC(){
+  const W=900, H=640;
+  const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g = cv.getContext('2d');
+  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#222'; g.lineWidth=2; g.strokeRect(1,1,W-2,H-2);
+  g.fillStyle='#333'; g.font='bold 18px Segoe UI, sans-serif';
+  g.fillText('TOEIC demo — x: speech rate, y: passiveness', 20, 30);
+  const rand = mulberry32(42);
+  const rows = [];
+  for (let i=0;i<90;i++){
+    const rate = round4(90 + rand()*110);          // x
+    const passive = round4(Math.max(0, Math.min(1, 1.05 - rate/210 + (rand()-0.5)*0.42))); // y, anti-correlated
+    const toeic = Math.round(Math.max(300, Math.min(990, 250 + rate*3.4 + (rand()-0.5)*220)));
+    const lex = Math.round(60 + (toeic-300)/690*220 + (rand()-0.5)*70);
+    rows.push(`P${String(i+1).padStart(3,'0')},${rate},${passive},${lex},${toeic},"Learner ${i+1}: 60-second picture description task."`);
+  }
+  const csv = ['name,loc::x_speech_rate,loc::y_passiveness,dim::lexical_richness,dim::toeic,desc::task', ...rows].join('\n');
+  S.datasetName = 'demo-toeic.csv';
+  ingestCSV(csv);
+  setBackground(cv.toDataURL(), true);
+  setTimeout(()=>{
+    document.getElementById('edgeL').value=80; document.getElementById('edgeR').value=210;
+    document.getElementById('edgeT').value=1.08; document.getElementById('edgeB').value=-0.08;
+    S.calib.prefilled = false;
+    S.enc.color.col='dim::lexical_richness'; S.enc.color.type='continuous'; S.enc.color.ramp='blueorange';
+    S.enc.size.col='dim::toeic'; S.enc.size.type='continuous';
+    document.getElementById('sizeMin').value=4; document.getElementById('sizeMax').value=14;
+    S.enc.shape.col='';
+    document.getElementById('ringChk').checked = true;   // de-linked: TOEIC score as separate open ring
+    document.getElementById('gratChk').checked = false;
+    populateEncSelectors();
+    document.getElementById('rampSel').value='blueorange';
+    onDisplayChange();
+    applyCalibration();
+    setStatus('inputStatus','ok','TOEIC demo loaded: color = lexical richness (continuous fill), size = TOEIC score as a separate open ring. Toggle it in Display.');
+  }, 60);
+}
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed>>>15, 1 | seed);
+    t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
+    return ((t ^ t>>>14) >>> 0) / 4294967296;
+  };
+}
+</script>
+</body>
+</html>
