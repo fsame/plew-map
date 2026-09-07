@@ -23,7 +23,7 @@ hugo server
 
 4. Open http://localhost:1313/
 
-You can also open `plew-map.html` directly in a browser. Use **Demo: atlas map** or **Demo: TOEIC scatter** for an instant example, or drop a CSV + image (+ audio) onto the page.
+You can also open `plew-map.html` directly in a browser. Use **Demo: atlas map** or **Demo: TOEIC scatter** for an instant example, or drop a CSV + image (+ audio) onto the page. Example corpora: http://localhost:1313/examples/
 
 Day-to-day use: `README-plew-map.md`. Where the corpora come from: `DATA-SOURCES.md`.
 
