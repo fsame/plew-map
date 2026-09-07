@@ -1,0 +1,47 @@
+# plew-map
+
+Plots CSV records on a calibrated background image (a map, a figure, or a blank frame). Click a point for the full record, with audio, video, ELAN `.eaf`, and Praat TextGrid when you drop those files too.
+
+Continuous-data sibling of [PLeW](https://github.com/fsame/PLeW-NLG). Column prefixes: `loc::`, `dim::`, `med::`, `desc::`.
+
+## Quick start
+
+1. Clone and enter the repo:
+
+```
+git clone https://github.com/fsame/plew-map.git
+cd plew-map
+```
+
+2. Install Hugo Extended ([releases](https://github.com/gohugoio/hugo/releases), or `brew install hugo` / `winget install Hugo.Hugo.Extended`).
+
+3. From the project root:
+
+```
+hugo server
+```
+
+4. Open http://localhost:1313/
+
+You can also open `plew-map.html` directly in a browser. Use **Demo: atlas map** or **Demo: TOEIC scatter** for an instant example, or drop a CSV + image (+ audio) onto the page.
+
+Day-to-day use: `README-plew-map.md`. Where the corpora come from: `DATA-SOURCES.md`.
+
+## Example data
+
+Audio bundles are not in git. Download a drop-in zip from [Releases](https://github.com/fsame/plew-map/releases/tag/datasets-1.0), unzip, and drop the folder onto plew-map.
+
+| Bundle | Contents |
+|--------|----------|
+| `alpilink-I01-bundle.zip` | Alpine varieties, tasks I01+I02 |
+| `doreco-africa-mini.zip` | Nine DoReCo Africa languages, one text each |
+
+ALLSSTAR (world Englishes) wavs stay on [SpeechBox](https://speechbox.linguistics.northwestern.edu/ALLSSTARcentral/#!/recordings).
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `hugo` is not recognized | Install Hugo Extended and open a new terminal |
+| Page will not load | Check that `hugo server` is still running |
+| Port 1313 in use | `hugo server --port 1314` |

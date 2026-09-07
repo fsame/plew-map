@@ -2,13 +2,13 @@
 
 **plew-map** plots CSV records at exact positions over a background image — a geographic map, a scanned figure, a plot frame, or nothing at all — and lets you click any point to open its full record with audio, video, and image attachments. It's the continuous-data sibling of the PLeW categorical visualizer and shares its column conventions and detail-modal design.
 
-For architecture and rationale, see `PLEW-MAP-DESIGN.md`. For ready-made test files with exact calibration values (including a pre-calibrated CSV that configures itself on upload), see `TESTDATA-README.md`. For a beginner's guide to the Mercator toggle, see `MERCATOR-PROJECTIONS.md`. This document is the day-to-day user guide.
+For ready-made test files with exact calibration values, see `TESTDATA-README.md`. For where the AlpiLinK, DoReCo, and ALLSSTAR data come from, see `DATA-SOURCES.md`. This document is the day-to-day user guide.
 
 ---
 
 ## Quick start
 
-Open `plew-map.html` in a browser (or serve it via Hugo at `/plew-map`). Then either press a **Demo** button to see a fully configured example instantly, or:
+Open `plew-map.html` in a browser, or from this folder run `hugo server` and go to http://localhost:1313/ (also at `/plew-map/`). Then either press a **Demo** button to see a fully configured example instantly, or:
 
 1. **Drop your files** — a CSV plus a background image (and any media files) onto the drop zone, together or one at a time. You can also drop them onto the main plot area.
 2. **Step 1: Location columns** — confirm which columns are X and Y.
