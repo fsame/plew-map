@@ -89,6 +89,41 @@ Numeric columns default to continuous and can be forced categorical (e.g., coded
 
 Hover any point for a tooltip of its leading fields; click to open the full record: a title (from `title`/`name`/ID), a field table (including `desc::` columns), and a tabbed media viewer for every populated `med::`/media column — audio player, video, YouTube embed, or image. Escape or clicking outside closes it and stops playback.
 
+**📷 Dark / Light** in the record header captures the window as a PNG (needs network for `html2canvas`).
+
+### Compare two records
+
+**Alt+click** a second point to open a side-by-side table. Differing fields are highlighted. **Clear B** or **Clear all** resets the slots. **Shift+click** still opens the editor.
+
+### Marks
+
+**Ctrl/Cmd+click** rings a point in white dashes so you can keep a handful of locations in view.
+
+## Edits and undo
+
+Moving, adding, editing, or deleting a point is recorded. **Undo** / **Redo** (Ctrl/Cmd+Z) and **Reset all** live in the **Edits** sidebar. **Change log** downloads a JSON list of those actions.
+
+## Column roles
+
+After a table is loaded, **Column roles** lets you retag a column (`loc` / `dim` / `desc` / `med` / `res`) and hide fields in the record window. Save to CSV writes the role as a prefix on the header.
+
+## JSON and extra media
+
+Drop `.json` / `.jsonl` as well as CSV. **Load media files…** adds audio, video, ELAN, or TextGrid after the table is already on the map. Mixed drops still work: CSV + images + wavs in one go.
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| **B** | Show or hide the sidebar |
+| **Click** | View record (compare slot A) |
+| **Shift+click** | Edit record |
+| **Alt+click** | Compare as slot B |
+| **Ctrl/Cmd+click** | Mark point |
+| **Ctrl/Cmd+Z** | Undo |
+| **Ctrl/Cmd+Shift+Z** | Redo |
+| **Esc** | Close the record window |
+
 ## Exporting
 
 The **Export** section appears once the plot is live, mirroring the download tools in the original PLeW editor:
@@ -97,8 +132,10 @@ The **Export** section appears once the plot is live, mirroring the download too
 
 **📸 Snapshot PNG** composites the background image and the point overlay (including any visible graticule and calibration markers) into a single PNG at the image's native resolution, named `<dataset>-snapshot.png`. Unlike PLeW's `html2canvas` approach, the snapshot is rendered natively from the SVG overlay, so shapes, rings, and gradient-colored points export exactly as displayed.
 
+**📤 Export setup** / **📥 Import setup** save encodings, filters, calibration, and column roles as JSON (no image or audio). Re-apply after loading the same table.
+
 ---
 
 ## Current limitations (prototype)
 
-No point editing, undo, change log, or anchor rows yet (these port over from PLeW once an inverse pixel→data transform lands); exactly three calibration points (no least-squares over-determination yet); one background image per session (re-set via **Set background…**); the background image itself is not embedded in exports, so a shared dataset still travels as CSV + image pair.
+Exactly three calibration points (no least-squares over-determination yet); the background image itself is not embedded in CSV or setup JSON, so a shared dataset still travels as CSV + image pair.

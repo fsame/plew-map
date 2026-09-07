@@ -4,13 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>plew-map — Continuous Data on Calibrated Images</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI', system-ui, sans-serif; background:#0f1419; color:#e8e8e8; min-height:100vh; }
 .app-container { display:flex; min-height:100vh; }
 
 /* ── Sidebar (PLeW conventions) ─────────────────────────── */
-.sidebar { width:350px; background:#1a1f26; border-right:1px solid #2d3640; padding:20px; overflow-y:auto; flex-shrink:0; height:100vh; position:sticky; top:0; }
+.sidebar { width:350px; background:#1a1f26; border-right:1px solid #2d3640; padding:20px; overflow-y:auto; flex-shrink:0; height:100vh; position:sticky; top:0; transition:width 0.25s ease, padding 0.25s ease, border 0.25s ease; }
+.sidebar.collapsed { width:0; padding:0; overflow:hidden; border-right:none; }
+.sidebar-toggle { position:fixed; left:350px; top:50%; transform:translateY(-50%); width:24px; height:60px; background:#1a1f26; border:1px solid #2d3640; border-left:none; border-radius:0 8px 8px 0; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#888; font-size:12px; z-index:100; }
+.sidebar.collapsed + .sidebar-toggle { left:0; }
+.sidebar.collapsed + .sidebar-toggle .arrow { transform:rotate(180deg); }
+.sidebar-toggle:hover { color:#4ecdc4; background:#232a33; }
+.sidebar-toggle .arrow { transition:transform 0.25s ease; }
 .sidebar h1 { font-size:1.25rem; color:#4ecdc4; margin-bottom:4px; }
 .subtitle { font-size:0.75rem; color:#888; margin-bottom:14px; line-height:1.4; }
 .section { margin-bottom:18px; border:1px solid #2d3640; border-radius:10px; padding:12px; background:#161b21; }
@@ -31,6 +38,29 @@ body { font-family:'Segoe UI', system-ui, sans-serif; background:#0f1419; color:
 .btn.primary:hover { background:#265a56; }
 .btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
 .btn:disabled { opacity:0.4; cursor:default; }
+.btn.loaded { border-color:#4ecdc4; color:#8fe8e1; }
+.undo-redo-btn { font-size:0.7rem; padding:5px 8px; }
+.undo-redo-btn .badge { color:#4ecdc4; margin-left:4px; }
+.changes-count { font-size:0.72rem; color:#9aa5b0; margin-bottom:8px; }
+.changelog-preview { max-height:140px; overflow:auto; font-size:0.66rem; color:#8a949e; line-height:1.45; margin-top:8px; }
+.column-role-list { list-style:none; max-height:220px; overflow:auto; }
+.column-role-list li { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:0.7rem; }
+.column-role-list select { width:auto; flex:1; padding:3px 6px; font-size:0.68rem; }
+.column-role-list .eye { border:none; background:none; color:#8a949e; cursor:pointer; font-size:0.85rem; }
+.column-role-list .eye.off { opacity:0.35; }
+.compare-slot-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:0.72rem; color:#9aa5b0; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #2d3640; }
+.compare-slot-b { color:#e67e22; }
+.modal.compare-modal { max-width:min(920px, 95vw); }
+.data-table tr.diff td { background:#24303a; }
+.modal-head-actions { display:flex; align-items:center; gap:6px; }
+.pt-shape.compare-a { stroke:#4ecdc4 !important; stroke-width:2.5px; }
+.pt-shape.compare-b { stroke:#e67e22 !important; stroke-width:2.5px; }
+.pt-shape.marked { stroke:#ffffff !important; stroke-dasharray:3 2; }
+.modal.snapshot-light { background:#f4f4f4; color:#222; border-color:#ccc; }
+.modal.snapshot-light h3, .modal.snapshot-light .media-section-title { color:#0d6e68; }
+.modal.snapshot-light .data-table td { border-color:#ddd; color:#222; }
+.modal.snapshot-light .data-table td:first-child { color:#666; }
+.modal.snapshot-light .hint { color:#666; }
 
 label.field { display:block; font-size:0.7rem; color:#9aa5b0; margin:8px 0 3px; }
 select, input[type=number], input[type=text] { width:100%; background:#0f1419; color:#e8e8e8; border:1px solid #2d3640; border-radius:6px; padding:6px 8px; font-size:0.75rem; font-family:inherit; }
@@ -206,28 +236,53 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
 </head>
 <body>
 <div class="app-container">
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <h1>🗺️ plew-map</h1>
     <p class="subtitle">Continuous data on a calibrated image. Upload a CSV + background map, calibrate, and encode dimensions with color, size &amp; shape. Click points for the full record with media.</p>
     <p class="examples-nav" id="examplesNav" style="display:none;margin-top:8px;"><a href="examples/" style="color:#4ecdc4;text-decoration:none;font-size:12px;">Example datasets →</a></p>
+    <p class="examples-nav" id="guideNav" style="display:none;margin-top:4px;"><a href="user-guide/" style="color:#4ecdc4;text-decoration:none;font-size:12px;">User guide →</a></p>
 
     <div class="section">
       <div class="section-title"><span>Data input</span></div>
       <div class="file-drop" id="fileDrop">
         <div class="file-drop-icon">📁</div>
-        <div class="file-drop-text">Drop CSV + basemap PNGs (+ .calib.txt sidecars)<br>+ media, ELAN .eaf, Praat .TextGrid — or click</div>
-        <input type="file" class="file-input" id="fileInput" multiple accept=".csv,.tsv,.txt,.png,.jpg,.jpeg,.gif,.webp,.svg,.wav,.mp3,.ogg,.flac,.aac,.m4a,.mp4,.webm,.mov,.eaf,.TextGrid,.textgrid">
+        <div class="file-drop-text">Drop CSV/JSON + basemap PNGs (+ .calib.txt sidecars)<br>+ media, ELAN .eaf, Praat .TextGrid — or click</div>
+        <input type="file" class="file-input" id="fileInput" multiple accept=".csv,.tsv,.txt,.json,.jsonl,.ndjson,.png,.jpg,.jpeg,.gif,.webp,.svg,.wav,.mp3,.ogg,.flac,.aac,.m4a,.mp4,.webm,.mov,.eaf,.TextGrid,.textgrid">
       </div>
       <div class="btn-row">
         <button class="btn" onclick="document.getElementById('bgInput').click()">Set background…</button>
         <button class="btn" onclick="useBlankFrame()">No background</button>
       </div>
       <input type="file" class="file-input" id="bgInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg">
+      <input type="file" class="file-input" id="mediaFolderInput" multiple>
+      <div class="btn-row">
+        <button class="btn" id="mediaFolderBtn" onclick="document.getElementById('mediaFolderInput').click()">Load media files…</button>
+      </div>
       <div class="btn-row">
         <button class="btn primary" onclick="loadDemoALI()">Demo: atlas map</button>
         <button class="btn primary" onclick="loadDemoTOEIC()">Demo: TOEIC scatter</button>
       </div>
       <div class="status" id="inputStatus"></div>
+    </div>
+
+    <div class="section" id="changesSection" style="display:none;">
+      <div class="section-title"><span>Edits</span></div>
+      <div class="changes-count" id="changesCount">No edits yet</div>
+      <div class="btn-row" style="margin-top:0;">
+        <button class="btn undo-redo-btn" id="undoBtn" onclick="undo()" disabled>↩ Undo <span class="badge" id="undoCount">0</span></button>
+        <button class="btn undo-redo-btn" id="redoBtn" onclick="redo()" disabled>↪ Redo <span class="badge" id="redoCount">0</span></button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="resetAllChanges()">Reset all</button>
+        <button class="btn" onclick="downloadChangeLog()">Change log</button>
+      </div>
+      <div class="changelog-preview" id="changeLogPreview"></div>
+    </div>
+
+    <div class="section" id="rolesSection" style="display:none;">
+      <div class="section-title"><span>Column roles</span></div>
+      <div class="hint" style="margin-top:0;">Retag columns and hide fields in the record window. Prefixes on export follow the role you set.</div>
+      <ul class="column-role-list" id="columnRoleList"></ul>
     </div>
 
     <div class="section" id="locSection" style="display:none;">
@@ -288,7 +343,7 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
       <div class="section-title"><span>Edit positions</span><span class="step-badge">After calib</span></div>
       <div class="inline"><input type="checkbox" id="dragChk" onchange="onDisplayChange()"><label for="dragChk"><b>Drag points</b> to move them</label></div>
       <div class="inline" style="margin-top:8px;"><input type="checkbox" id="addChk" onchange="onDisplayChange()"><label for="addChk"><b>Click map</b> to add a new point</label></div>
-      <div class="hint" id="dragHint" style="margin-top:6px;">Drag updates location columns live. <b>Click map</b> (with add mode on) places a new point and opens the annotation form. <b>Click</b> a point to view its record (audio/images). <b>Shift+click</b> to edit fields. <b>Save to CSV</b> keeps changes.</div>
+      <div class="hint" id="dragHint" style="margin-top:6px;">Drag updates location columns live. <b>Click map</b> (with add mode on) places a new point. <b>Click</b> a point to view. <b>Shift+click</b> to edit. <b>Alt+click</b> to compare as slot B. <b>Ctrl/Cmd+click</b> to mark. <b>Save to CSV</b> keeps changes.</div>
       <div class="status" id="dragStatus"></div>
     </div>
 
@@ -371,7 +426,12 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
         <button class="btn primary" style="flex:1;" onclick="downloadCSV()">💾 Save to CSV</button>
         <button class="btn" onclick="downloadSnapshot()">📸 Snapshot PNG</button>
       </div>
-      <div class="hint"><b>Save to CSV</b> downloads the dataset with the current calibration embedded as a reserved <b>__PLEWMAP_CALIB__</b> row. Re-uploading that file auto-calibrates: location columns, the Mercator setting, and the edge values or three-point transform all restore automatically.</div>
+      <div class="btn-row">
+        <button class="btn" onclick="downloadVisualizationConfig()">📤 Export setup</button>
+        <button class="btn" onclick="document.getElementById('vizConfigInput').click()">📥 Import setup</button>
+      </div>
+      <input type="file" class="file-input" id="vizConfigInput" accept=".json">
+      <div class="hint"><b>Save to CSV</b> downloads the dataset with the current calibration embedded as a reserved <b>__PLEWMAP_CALIB__</b> row. <b>Export setup</b> saves encodings, filters, calibration, and column roles as JSON (no image or audio).</div>
       <div class="status" id="exportStatus"></div>
     </div>
 
@@ -380,6 +440,7 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
       <div id="legendBody"></div>
     </div>
   </div>
+  <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar (B)"><span class="arrow">◀</span></button>
 
   <div class="main-area">
     <div class="map-header" id="mapHeader" style="display:none;">
@@ -413,7 +474,17 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-head">
       <h3 id="modalTitle">Record</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-head-actions">
+        <button type="button" class="btn" onclick="snapshotModal(false)" title="Dark snapshot">📷 Dark</button>
+        <button type="button" class="btn" onclick="snapshotModal(true)" title="Light snapshot">📷 Light</button>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+    </div>
+    <div class="compare-slot-bar" id="compareSlotBar" style="display:none;">
+      <span>A: <strong id="compareSlotALabel">—</strong></span>
+      <span class="compare-slot-b">B: <strong id="compareSlotBLabel">—</strong></span>
+      <button type="button" class="btn" onclick="clearCompareSlot('b')">Clear B</button>
+      <button type="button" class="btn" onclick="clearCompareSlots()">Clear all</button>
     </div>
     <div id="modalBody"></div>
   </div>
@@ -491,8 +562,17 @@ const S = {
   basemaps:[], activeBasemapId:null,
   view:{ scale:1, tx:0, ty:0 },
   zoomBarPos:null,
-  editingRow:null, editingIsNew:false
+  editingRow:null, editingIsNew:false,
+  originalData:[],
+  undoStack:[], redoStack:[],
+  changeLog:[],
+  compare:{ a:null, b:null },
+  marked:new Set(),
+  roleOverrides:{},
+  columnVisibility:{},
+  columnRecordOrder:[]
 };
+const MAX_UNDO = 40;
 const ZOOM_MIN = 0.2, ZOOM_MAX = 12;
 function mkPt(){ return { px:null, py:null, dx:null, dy:null }; }
 
@@ -678,6 +758,41 @@ function parseCSV(text){
   });
   return { headers, data };
 }
+function isJsonFilename(name){
+  return /\.(json|jsonl|ndjson)$/i.test(name||'');
+}
+function parseJSON(text){
+  let rows = [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) rows = parsed;
+    else if (parsed && Array.isArray(parsed.rows)) rows = parsed.rows.map(r => (r && typeof r.row === 'object') ? r.row : r);
+    else if (parsed && Array.isArray(parsed.data)) rows = parsed.data;
+    else if (parsed && typeof parsed === 'object') rows = [parsed];
+  } catch (e){
+    rows = text.split('\n').map(l=>l.replace(/\r$/,'').trim()).filter(Boolean).map(l=>{
+      try { return JSON.parse(l); } catch(e2){ return null; }
+    }).filter(Boolean);
+  }
+  rows = rows.map(r => (r && typeof r === 'object' && !Array.isArray(r)) ? r : { value:r });
+  const headerSet = new Set();
+  rows.forEach(r => Object.keys(r).forEach(k => { if (!k.startsWith('_')) headerSet.add(k); }));
+  const headers = [...headerSet];
+  const data = rows.map((r,i)=>{
+    const row = { _index:i };
+    headers.forEach(h=>{
+      const v = r[h];
+      if (v==null) row[h] = '';
+      else if (typeof v === 'object') row[h] = JSON.stringify(v);
+      else row[h] = String(v);
+    });
+    return row;
+  });
+  return { headers, data };
+}
+function parseDataFile(text, name){
+  return isJsonFilename(name) ? parseJSON(text) : parseCSV(text);
+}
 
 // ============================================================
 // COLUMN CLASSIFICATION
@@ -693,7 +808,8 @@ function classifyColumns(){
     const p = parsePrefix(h);
     const dn = displayName(h).toLowerCase();
     let role = 'auto';
-    if (p) role = p.type;
+    if (S.roleOverrides[h]) role = S.roleOverrides[h];
+    else if (p) role = p.type;
     else if (isMediaName(h) || /^(media|audio|image|video)[-_]?type$/i.test(dn)) role = 'med';
     else if (DESC_LIKE.includes(dn)) role = 'desc';
     const vals = S.data.map(r=>r[h]);
@@ -717,6 +833,337 @@ function guessLocColumns(){
     y = y || nums.find(k=>k!==x) || null;
   }
   S.locX = x; S.locY = y;
+}
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+function cloneRows(data){ return data.map(r=>({...r})); }
+function rowByIndex(i){ return S.data.find(r=>r._index===i) || S.data[i]; }
+function pushUndoAction(action){
+  S.undoStack.push(action);
+  if (S.undoStack.length > MAX_UNDO) S.undoStack.shift();
+  S.redoStack = [];
+  updateUndoUI();
+}
+function applyFieldChanges(changes, reverse){
+  changes.forEach(ch=>{
+    const row = rowByIndex(ch.rowIndex);
+    if (!row) return;
+    row[ch.field] = reverse ? ch.oldValue : ch.newValue;
+  });
+}
+function undo(){
+  if (!S.undoStack.length) return;
+  const action = S.undoStack.pop();
+  if (action.type==='add'){
+    S.data = S.data.filter(r=>r._index!==action.row._index);
+  } else if (action.type==='delete'){
+    S.data.splice(action.index, 0, {...action.row});
+  } else {
+    applyFieldChanges(action.changes, true);
+  }
+  reindexData();
+  classifyColumns();
+  S.redoStack.push(action);
+  updateUndoUI();
+  renderAll();
+  setStatus('exportStatus','ok','Undid: '+escHtml(action.label||action.type));
+}
+function redo(){
+  if (!S.redoStack.length) return;
+  const action = S.redoStack.pop();
+  if (action.type==='add'){
+    S.data.push({...action.row});
+  } else if (action.type==='delete'){
+    S.data = S.data.filter(r=>r._index!==action.row._index);
+  } else {
+    applyFieldChanges(action.changes, false);
+  }
+  reindexData();
+  classifyColumns();
+  S.undoStack.push(action);
+  updateUndoUI();
+  renderAll();
+  setStatus('exportStatus','ok','Redid: '+escHtml(action.label||action.type));
+}
+function updateUndoUI(){
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  if (!undoBtn) return;
+  undoBtn.disabled = !S.undoStack.length;
+  redoBtn.disabled = !S.redoStack.length;
+  document.getElementById('undoCount').textContent = S.undoStack.length;
+  document.getElementById('redoCount').textContent = S.redoStack.length;
+  const n = S.changeLog.length;
+  document.getElementById('changesCount').textContent = n ? n+' change'+(n===1?'':'s') : 'No edits yet';
+  const preview = document.getElementById('changeLogPreview');
+  if (preview){
+    preview.innerHTML = S.changeLog.slice(-8).reverse().map(c=>escHtml(c.label||c.type)).join('<br>') || '';
+  }
+}
+function logChange(label, extra){
+  S.changeLog.push({ label, time:new Date().toISOString(), ...extra });
+  updateUndoUI();
+}
+function resetAllChanges(){
+  if (!S.originalData.length) return;
+  S.data = cloneRows(S.originalData);
+  reindexData();
+  classifyColumns();
+  S.undoStack = []; S.redoStack = []; S.changeLog = [];
+  S.compare = { a:null, b:null };
+  S.marked = new Set();
+  updateUndoUI();
+  renderAll();
+  setStatus('exportStatus','ok','All edits reset to the uploaded file.');
+}
+function downloadChangeLog(){
+  const blob = new Blob([JSON.stringify(S.changeLog, null, 2)], {type:'application/json'});
+  triggerDownload(URL.createObjectURL(blob), exportBaseName()+'-changelog.json');
+}
+
+function renderColumnRoles(){
+  const ul = document.getElementById('columnRoleList');
+  if (!ul) return;
+  const roles = ['auto','loc','dim','desc','med','res'];
+  ul.innerHTML = S.headers.map(h=>{
+    const cur = S.roleOverrides[h] || S.cols[h]?.role || 'auto';
+    const vis = S.columnVisibility[h] !== false;
+    const opts = roles.map(r=>`<option value="${r}"${r===cur?' selected':''}>${r}</option>`).join('');
+    return `<li>
+      <button type="button" class="eye${vis?'':' off'}" title="Show in record window" onclick="toggleColumnVisible('${escAttr(h)}')">${vis?'👁':'🙈'}</button>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;" title="${escAttr(h)}">${escHtml(displayName(h))}</span>
+      <select onchange="setColumnRole('${escAttr(h)}', this.value)">${opts}</select>
+    </li>`;
+  }).join('');
+}
+function setColumnRole(h, role){
+  if (role==='auto') delete S.roleOverrides[h];
+  else S.roleOverrides[h] = role;
+  classifyColumns();
+  populateLocSelectors();
+  populateEncSelectors();
+  renderColumnRoles();
+  renderAll();
+}
+function toggleColumnVisible(h){
+  S.columnVisibility[h] = S.columnVisibility[h] === false;
+  renderColumnRoles();
+}
+
+function displayRolePrefix(h){
+  const role = S.roleOverrides[h] || S.cols[h]?.role;
+  const p = parsePrefix(h);
+  if (p) return h;
+  if (role && role!=='auto') return role+'::'+h;
+  return h;
+}
+
+function onPointClick(e, row){
+  e.preventDefault();
+  if (mapDidPan){ mapDidPan = false; return; }
+  if (S.calib.placing>=0 || dragState) return;
+  hideTooltip();
+  if (e.metaKey || e.ctrlKey){
+    toggleMarked(row._index);
+    renderAll();
+    return;
+  }
+  if (e.shiftKey){
+    openRecordEditor(row);
+    return;
+  }
+  if (e.altKey){
+    S.compare.b = row._index;
+    if (S.compare.a==null) S.compare.a = row._index;
+    renderCompareModal();
+    renderAll();
+    return;
+  }
+  S.compare.a = row._index;
+  openModal(row);
+  renderAll();
+}
+function toggleMarked(idx){
+  if (S.marked.has(idx)) S.marked.delete(idx);
+  else S.marked.add(idx);
+}
+function getCompareSlotLabel(idx){
+  if (idx==null) return '—';
+  const row = rowByIndex(idx);
+  return row ? modalTitle(row) : '—';
+}
+function updateCompareSlotBar(){
+  const bar = document.getElementById('compareSlotBar');
+  if (!bar) return;
+  const show = S.compare.a!=null || S.compare.b!=null;
+  bar.style.display = show ? 'flex' : 'none';
+  document.getElementById('compareSlotALabel').textContent = getCompareSlotLabel(S.compare.a);
+  document.getElementById('compareSlotBLabel').textContent = getCompareSlotLabel(S.compare.b);
+}
+function clearCompareSlot(slot){
+  S.compare[slot] = null;
+  if (S.compare.a==null && S.compare.b==null) closeModal();
+  else if (S.compare.a!=null && S.compare.b!=null) renderCompareModal();
+  else openModal(rowByIndex(S.compare.a ?? S.compare.b));
+  renderAll();
+}
+function clearCompareSlots(){
+  S.compare = { a:null, b:null };
+  closeModal();
+  renderAll();
+}
+function modalTableKeys(row){
+  const order = S.columnRecordOrder.filter(h=>S.headers.includes(h));
+  const rest = S.headers.filter(h=>!order.includes(h));
+  return [...order, ...rest].filter(h=>{
+    if (!Object.prototype.hasOwnProperty.call(row, h)) return false;
+    if (h.startsWith('_')) return false;
+    if (S.columnVisibility[h]===false) return false;
+    return !excludeFromModal(h);
+  });
+}
+function renderCompareModal(){
+  const rowA = rowByIndex(S.compare.a);
+  const rowB = rowByIndex(S.compare.b);
+  const modal = document.querySelector('#modalOverlay .modal');
+  updateCompareSlotBar();
+  if (rowA && rowB && rowA!==rowB){
+    modal.classList.add('compare-modal');
+    document.getElementById('modalTitle').textContent = 'Compare records';
+    const keys = [...new Set([...modalTableKeys(rowA), ...modalTableKeys(rowB)])];
+    let html = '<table class="data-table"><tr><td></td><td><b>A</b></td><td><b>B</b></td></tr>';
+    keys.forEach(h=>{
+      const a = String(rowA[h]??''), b = String(rowB[h]??'');
+      html += `<tr class="${a===b?'':'diff'}"><td>${escHtml(displayName(h))}</td><td>${escHtml(a)}</td><td>${escHtml(b)}</td></tr>`;
+    });
+    html += '</table>';
+    html += `<div class="row2" style="margin-top:12px;"><div>${recordMediaBlock(rowA,'A')}</div><div>${recordMediaBlock(rowB,'B')}</div></div>`;
+    document.getElementById('modalBody').innerHTML = html;
+    bindMediaPlaybackHints();
+    document.getElementById('modalOverlay').classList.add('active');
+  } else {
+    modal.classList.remove('compare-modal');
+    openModal(rowA || rowB);
+  }
+}
+function recordMediaBlock(row, label){
+  const media = getRowMedia(row);
+  if (!media.length) return `<div class="hint">${escHtml(label)}: no media</div>`;
+  return `<div class="media-section"><div class="media-section-title">${escHtml(label)} media</div>${media.map(m=>mediaHTML(m)).join('')}</div>`;
+}
+
+function displaySnapshot(){
+  return {
+    baseSize: document.getElementById('baseSize').value,
+    opacity: document.getElementById('opacity').value,
+    stroke: document.getElementById('strokeChk').checked,
+    ring: document.getElementById('ringChk').checked,
+    grat: document.getElementById('gratChk').checked,
+    jitter: document.getElementById('jitterChk').checked
+  };
+}
+function applyDisplaySnapshot(d){
+  if (!d) return;
+  const set = (id, v, chk)=>{
+    const el = document.getElementById(id);
+    if (!el || v==null) return;
+    if (chk) el.checked = !!v; else el.value = v;
+  };
+  set('baseSize', d.baseSize); set('opacity', d.opacity);
+  set('strokeChk', d.stroke, true); set('ringChk', d.ring, true);
+  set('gratChk', d.grat, true); set('jitterChk', d.jitter, true);
+  onDisplayChange();
+}
+function buildVisualizationConfig(){
+  return {
+    version: 1,
+    locX: S.locX, locY: S.locY, mercator: S.mercator,
+    calib: buildCalibPayload(),
+    enc: JSON.parse(JSON.stringify(S.enc)),
+    filters: S.filters,
+    speakerFilter: { multiOnly: S.speakerFilter.multiOnly, selected: [...S.speakerFilter.selected] },
+    display: displaySnapshot(),
+    roleOverrides: S.roleOverrides,
+    columnVisibility: S.columnVisibility,
+    columnRecordOrder: S.columnRecordOrder,
+    activeBasemapId: S.activeBasemapId
+  };
+}
+function downloadVisualizationConfig(){
+  if (!S.data.length) return;
+  const blob = new Blob([JSON.stringify(buildVisualizationConfig(), null, 2)], {type:'application/json'});
+  triggerDownload(URL.createObjectURL(blob), 'plew-setup-'+exportBaseName()+'.json');
+  setStatus('exportStatus','ok','Setup JSON saved (encodings, filters, calibration, column roles).');
+}
+function importVisualizationConfigFromFile(e){
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try { applyVisualizationConfig(JSON.parse(ev.target.result)); }
+    catch(err){ setStatus('exportStatus','err','Could not read setup file.'); }
+  };
+  reader.readAsText(file);
+}
+function applyVisualizationConfig(cfg){
+  if (!cfg || !S.data.length) return;
+  if (cfg.roleOverrides) S.roleOverrides = cfg.roleOverrides;
+  if (cfg.columnVisibility) S.columnVisibility = cfg.columnVisibility;
+  if (cfg.columnRecordOrder) S.columnRecordOrder = cfg.columnRecordOrder;
+  classifyColumns();
+  if (cfg.locX && S.headers.includes(cfg.locX)) document.getElementById('locXSel').value = cfg.locX;
+  if (cfg.locY && S.headers.includes(cfg.locY)) document.getElementById('locYSel').value = cfg.locY;
+  if (cfg.mercator!=null) document.getElementById('mercChk').checked = !!cfg.mercator;
+  onLocChange(true);
+  if (cfg.calib){
+    S.pendingCalib = cfg.calib;
+    applyEmbeddedCalib();
+  }
+  if (cfg.enc){
+    S.enc = Object.assign(S.enc, cfg.enc);
+    populateEncSelectors();
+    if (S.enc.color.col) document.getElementById('colorSel').value = S.enc.color.col;
+    if (S.enc.size.col) document.getElementById('sizeSel').value = S.enc.size.col;
+    if (S.enc.shape.col) document.getElementById('shapeSel').value = S.enc.shape.col;
+    onEncChange();
+  }
+  if (cfg.filters) S.filters = cfg.filters;
+  if (cfg.speakerFilter){
+    S.speakerFilter.multiOnly = !!cfg.speakerFilter.multiOnly;
+    S.speakerFilter.selected = new Set(cfg.speakerFilter.selected||[]);
+  }
+  applyDisplaySnapshot(cfg.display);
+  if (cfg.activeBasemapId && S.basemaps.some(b=>b.id===cfg.activeBasemapId)){
+    const sel = document.getElementById('basemapSel');
+    if (sel) sel.value = cfg.activeBasemapId;
+    switchBasemap(cfg.activeBasemapId);
+  }
+  renderColumnRoles();
+  renderAll();
+  setStatus('exportStatus','ok','Visualization setup applied.');
+}
+
+async function snapshotModal(lightMode){
+  const modal = document.querySelector('#modalOverlay .modal');
+  if (!modal || typeof html2canvas === 'undefined'){
+    setStatus('exportStatus','warn','Record snapshot needs html2canvas (check your network). Use the map Snapshot PNG instead.');
+    return;
+  }
+  const hide = [...modal.querySelectorAll('.modal-head-actions, .compare-slot-bar .btn, .modal-close')];
+  hide.forEach(el=>el.style.visibility='hidden');
+  if (lightMode) modal.classList.add('snapshot-light');
+  try {
+    const canvas = await html2canvas(modal, { backgroundColor: lightMode ? '#f4f4f4' : '#1a1f26', scale:2 });
+    triggerDownload(canvas.toDataURL('image/png'), exportBaseName() + (lightMode? '-record-light.png' : '-record.png'));
+  } catch(err){
+    setStatus('exportStatus','err','Record snapshot failed.');
+  } finally {
+    modal.classList.remove('snapshot-light');
+    hide.forEach(el=>el.style.visibility='');
+  }
 }
 
 // ============================================================
@@ -842,6 +1289,17 @@ fileDrop.addEventListener('dragover', e=>{ e.preventDefault(); fileDrop.classLis
 fileDrop.addEventListener('dragleave', ()=>fileDrop.classList.remove('dragover'));
 fileDrop.addEventListener('drop', e=>{ e.preventDefault(); fileDrop.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
 fileInput.addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
+document.getElementById('mediaFolderInput').addEventListener('change', e=>{
+  const n = e.target.files.length;
+  handleFiles(e.target.files);
+  e.target.value = '';
+  const btn = document.getElementById('mediaFolderBtn');
+  if (btn){
+    btn.textContent = n ? `Media files: ${n} loaded` : 'Load media files…';
+    btn.classList.toggle('loaded', n>0);
+  }
+});
+document.getElementById('vizConfigInput').addEventListener('change', importVisualizationConfigFromFile);
 ['dragover','drop'].forEach(ev=>document.querySelector('.main-area').addEventListener(ev, e=>{
   e.preventDefault();
   if (ev==='drop' && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
@@ -888,6 +1346,12 @@ async function fileToMediaUrl(f){
 
 async function csvFirstHeaders(f){
   const text = await f.slice(0, 8192).text();
+  if (isJsonFilename(f.name)){
+    try {
+      const { headers } = parseJSON(text.endsWith(']') || text.trim().startsWith('{') ? text : text.split('\n')[0]);
+      return headers;
+    } catch(e){ return []; }
+  }
   const first = text.replace(/\r\n?/g,'\n').split('\n').find(l=>l.trim().length) || '';
   if (!first) return [];
   const d = detectDelimiter([first]);
@@ -1592,7 +2056,7 @@ function handleFiles(fileList){
   const ALIGN_RE = /\.(eaf|textgrid)$/i;
   files.forEach(f=>{
     if (/\.calib\.txt$/i.test(f.name)) calibFiles.push(f);
-    else if (/\.(csv|tsv)$/i.test(f.name)) csvFiles.push(f);
+    else if (/\.(csv|tsv)$/i.test(f.name) || isJsonFilename(f.name)) csvFiles.push(f);
     else if (ALIGN_RE.test(f.name)) alignFiles.push(f);
     else if (IMG_RE.test(f.name)) imgs.push(f);
     else if (MED_RE.test(f.name)) mediaFiles.push(f);
@@ -1601,7 +2065,7 @@ function handleFiles(fileList){
     const csvFile = await pickMapCsv(csvFiles);
     if (csvFile){
       S.datasetName = csvFile.name;
-      ingestCSV(await csvFile.text());
+      ingestCSV(await csvFile.text(), csvFile.name);
       clearMediaUrls();
       S.alignFiles = {};
       S.alignCache = {};
@@ -1653,7 +2117,7 @@ function handleFiles(fileList){
       delete S.alignCache[f.name];
     });
     const bits = [];
-    if (csvFile) bits.push(`CSV: ${S.data.length} rows, ${S.headers.length} columns`);
+    if (csvFile) bits.push(`${isJsonFilename(csvFile.name)?'JSON':'CSV'}: ${S.data.length} rows, ${S.headers.length} columns`);
     else if (csvFiles.length && S.data.length) bits.push('Kept current CSV (ignored extra metadata tables)');
     if (S.basemaps.length) bits.push(`${S.basemaps.length} basemap(s)`);
     if (mediaJobs.length) bits.push(`${Object.keys(S.media).length} media file(s)`);
@@ -1705,8 +2169,8 @@ function useBlankFrame(){
   setStatus('inputStatus','ok','Blank plot frame created (900×640). Calibrate edges to your data ranges. The faint gridlines belong to the frame image itself — the data-space graticule is the separate toggle under Display.');
 }
 const CALIB_MARKER = '__PLEWMAP_CALIB__';
-function ingestCSV(text){
-  const { headers, data } = parseCSV(text);
+function ingestCSV(text, filename){
+  const { headers, data } = parseDataFile(text, filename || S.datasetName);
   // Extract embedded calibration row(s): marker in the first column, JSON payload in the second
   S.pendingCalib = null;
   const realData = [];
@@ -1718,6 +2182,14 @@ function ingestCSV(text){
   });
   realData.forEach((r,i)=>{ r._index = i; });
   S.headers = headers; S.data = realData;
+  S.originalData = realData.map(r=>({...r}));
+  S.undoStack = []; S.redoStack = []; S.changeLog = [];
+  S.compare = { a:null, b:null };
+  S.marked = new Set();
+  S.roleOverrides = {};
+  S.columnVisibility = {};
+  S.columnRecordOrder = [...headers];
+  headers.forEach(h=>{ S.columnVisibility[h] = true; });
   classifyColumns();
   guessLocColumns();
   S.calib.valid=false; S.calib.affine=null; S.calib.pts=[mkPt(),mkPt(),mkPt()]; S.calib.placing=-1;
@@ -1727,6 +2199,8 @@ function ingestCSV(text){
   autoAssignEncodings();
   populateLocSelectors();
   populateEncSelectors();
+  renderColumnRoles();
+  updateUndoUI();
   applyEmbeddedCalib();
 }
 function applyEmbeddedCalib(){
@@ -2362,6 +2836,7 @@ function startPointDrag(e, row, el, shape, r, ringEl){
   e.stopPropagation();
   hideTooltip();
   dragState = { row, el, shape, r, ringEl, moved:false };
+  const beforeX = row[S.locX], beforeY = row[S.locY];
   el.classList.add('dragging');
   document.getElementById('mapStage').classList.add('point-dragging');
   const move = ev=>{
@@ -2387,12 +2862,19 @@ function startPointDrag(e, row, el, shape, r, ringEl){
     const moved = dragState?.moved;
     dragState = null;
     if (moved){
+      pushUndoAction({
+        type:'fields',
+        label:'Move '+modalTitle(row),
+        changes:[
+          { rowIndex:row._index, field:S.locX, oldValue:beforeX, newValue:row[S.locX] },
+          { rowIndex:row._index, field:S.locY, oldValue:beforeY, newValue:row[S.locY] }
+        ]
+      });
+      logChange('Move '+modalTitle(row));
       renderAll();
       setStatus('exportStatus','ok','Position updated — use <b>Save to CSV</b> to keep changes.');
-    } else if (ev.shiftKey){
-      openRecordEditor(row);
     } else {
-      openModal(row);
+      onPointClick(ev, row);
     }
   };
   document.addEventListener('mousemove', move);
@@ -2409,6 +2891,8 @@ function renderAll(){
   document.getElementById('dispSection').style.display = plotReady?'':'none';
   document.getElementById('legendSection').style.display = plotReady?'':'none';
   document.getElementById('exportSection').style.display = plotReady?'':'none';
+  document.getElementById('changesSection').style.display = ready?'':'none';
+  document.getElementById('rolesSection').style.display = ready?'':'none';
   const es = document.getElementById('emptyState');
   es.style.display = (ready&&S.imageSet)?'none':'';
   if (ready && !S.imageSet){
@@ -2482,6 +2966,9 @@ function renderAll(){
     el.setAttribute('fill-opacity', opacity);
     if (stroke){ el.setAttribute('stroke', '#1a1f26'); el.setAttribute('stroke-width', Math.max(0.75*scale, r*0.12)); }
     el.classList.add('pt-shape');
+    if (row._index===S.compare.a) el.classList.add('compare-a');
+    if (S.compare.b!=null && row._index===S.compare.b) el.classList.add('compare-b');
+    if (S.marked.has(row._index)) el.classList.add('marked');
     if (dragModeOn()) el.classList.add('draggable');
     el.addEventListener('mouseenter', e=>{ if (!dragState) showTooltip(e,row); });
     el.addEventListener('mousemove', moveTooltip);
@@ -2502,14 +2989,7 @@ function renderAll(){
     if (dragModeOn()){
       el.addEventListener('mousedown', e=>startPointDrag(e, row, el, shapeFor(row), r, ring));
     } else {
-      el.addEventListener('click', e=>{
-        if (mapDidPan){ mapDidPan = false; return; }
-        if (S.calib.placing<0 && !dragState){
-          hideTooltip();
-          if (e.shiftKey) openRecordEditor(row);
-          else openModal(row);
-        }
-      });
+      el.addEventListener('click', e=>onPointClick(e, row));
     }
     plotted++;
   });
@@ -2750,7 +3230,7 @@ function showTooltip(e,row){
     const icons = [...new Set(media.map(m=>m.type==='video'?'🎬':m.type==='audio'?'🎵':'📷'))].join('');
     html += `${icons} `;
   }
-  html += `Click to view · Shift+click to edit</div>`;
+  html += `Click to view · Shift+click edit · Alt+click compare B · Ctrl/Cmd+click mark</div>`;
   tip.innerHTML = html;
   tip.classList.add('visible');
   moveTooltip(e);
@@ -2766,6 +3246,9 @@ function hideTooltip(){ document.getElementById('tooltip').classList.remove('vis
 function openRecordEditor(row, opts={}){
   S.editingRow = row;
   S.editingIsNew = !!opts.isNew;
+  document.querySelector('#modalOverlay .modal')?.classList.remove('compare-modal');
+  const bar = document.getElementById('compareSlotBar');
+  if (bar) bar.style.display = 'none';
   document.getElementById('modalTitle').textContent = opts.isNew ? 'New point' : 'Edit record';
   let html = `<form id="recordEditorForm" onsubmit="return saveRecordEditor(event)">`;
   S.headers.forEach(h=>{
@@ -2806,11 +3289,24 @@ function saveRecordEditor(e){
   const row = S.editingRow;
   if (!row) return false;
   const form = document.getElementById('recordEditorForm');
+  const wasNew = S.editingIsNew;
+  const changes = [];
   S.headers.forEach(h=>{
     if (excludeFromEditor(h)) return;
     const el = form.elements[h];
-    if (el) row[h] = el.value.trim();
+    if (!el) return;
+    const next = el.value.trim();
+    const prev = row[h] ?? '';
+    if (next !== prev) changes.push({ rowIndex:row._index, field:h, oldValue:prev, newValue:next });
+    row[h] = next;
   });
+  if (wasNew){
+    pushUndoAction({ type:'add', label:'Add '+modalTitle(row), row:{...row} });
+    logChange('Add '+modalTitle(row));
+  } else if (changes.length){
+    pushUndoAction({ type:'fields', label:'Edit '+modalTitle(row), changes });
+    logChange('Edit '+modalTitle(row));
+  }
   S.editingRow = null;
   S.editingIsNew = false;
   classifyColumns();
@@ -2838,7 +3334,12 @@ function cancelRecordEditor(){
 function deleteEditingRow(){
   if (!S.editingRow) return;
   const idx = S.data.indexOf(S.editingRow);
-  if (idx >= 0) S.data.splice(idx, 1);
+  const row = S.editingRow;
+  if (idx >= 0){
+    pushUndoAction({ type:'delete', label:'Delete '+modalTitle(row), row:{...row}, index:idx });
+    logChange('Delete '+modalTitle(row));
+    S.data.splice(idx, 1);
+  }
   reindexData();
   S.editingRow = null;
   S.editingIsNew = false;
@@ -2849,10 +3350,11 @@ function deleteEditingRow(){
 }
 
 function openModal(row){
+  document.querySelector('#modalOverlay .modal')?.classList.remove('compare-modal');
+  updateCompareSlotBar();
   document.getElementById('modalTitle').textContent = modalTitle(row);
   let html = '<table class="data-table">';
-  S.headers.forEach(h=>{
-    if (excludeFromModal(h)) return;
+  modalTableKeys(row).forEach(h=>{
     let val = escHtml(row[h]);
     if (h===S.enc.color.col && S.enc.color.type==='categorical'){
       const c = colorFor(row);
@@ -2942,11 +3444,19 @@ function closeModal(e){
   S.editingRow = null;
   S.editingIsNew = false;
   document.getElementById('modalOverlay').classList.remove('active');
+  document.querySelector('#modalOverlay .modal')?.classList.remove('compare-modal');
   // stop any playing media
   document.querySelectorAll('#modalBody audio, #modalBody video').forEach(m=>m.pause());
   document.querySelectorAll('#modalBody iframe').forEach(f=>{ f.src = f.src; });
 }
-document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeModal(); });
+document.addEventListener('keydown', e=>{
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+  if (e.key==='Escape') closeModal();
+  if (typing) return;
+  if (e.key==='b' || e.key==='B') toggleSidebar();
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key==='z'){ e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key==='z' || e.key==='Z')){ e.preventDefault(); redo(); }
+});
 
 // ============================================================
 // EXPORT — Save to CSV (embeds calibration) & snapshot PNG
@@ -2962,7 +3472,7 @@ function buildCalibPayload(){
   return c;
 }
 function generateCSV(){
-  const lines = [ S.headers.map(csvCell).join(',') ];
+  const lines = [ S.headers.map(h=>csvCell(displayRolePrefix(h))).join(',') ];
   S.data.forEach(row=>lines.push(S.headers.map(h=>csvCell(row[h])).join(',')));
   if (S.calib.valid && S.headers.length>1){
     const row = S.headers.map((h,i)=> i===0 ? CALIB_MARKER : i===1 ? JSON.stringify(buildCalibPayload()) : '');
@@ -3148,6 +3658,12 @@ if (window.PLEW_HUGO){
     nav.style.display = '';
     const a = nav.querySelector('a');
     if (a && window.PLEW_EXAMPLES_INDEX) a.href = window.PLEW_EXAMPLES_INDEX;
+  }
+  const guide = document.getElementById('guideNav');
+  if (guide){
+    guide.style.display = '';
+    const a = guide.querySelector('a');
+    if (a && window.PLEW_GUIDE) a.href = window.PLEW_GUIDE;
   }
 }
 if (window.PLEW_EXAMPLE){
