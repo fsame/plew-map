@@ -209,6 +209,7 @@ input[type=checkbox], input[type=radio] { accent-color:#4ecdc4; }
   <div class="sidebar">
     <h1>🗺️ plew-map</h1>
     <p class="subtitle">Continuous data on a calibrated image. Upload a CSV + background map, calibrate, and encode dimensions with color, size &amp; shape. Click points for the full record with media.</p>
+    <p class="examples-nav" id="examplesNav" style="display:none;margin-top:8px;"><a href="examples/" style="color:#4ecdc4;text-decoration:none;font-size:12px;">Example datasets →</a></p>
 
     <div class="section">
       <div class="section-title"><span>Data input</span></div>
@@ -1663,7 +1664,7 @@ function handleFiles(fileList){
     if (csvFile) maybeAutoJitter();
     renderAll();
   };
-  finish();
+  return finish();
 }
 function setBackgroundFromFile(f){
   fileToDataURL(f)
@@ -3126,6 +3127,34 @@ function mulberry32(seed){
     t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
     return ((t ^ t>>>14) >>> 0) / 4294967296;
   };
+}
+async function loadRemoteExample(manifestUrl){
+  setStatus('inputStatus','warn','Loading example…');
+  const res = await fetch(manifestUrl);
+  if (!res.ok) throw new Error('manifest '+res.status);
+  const man = await res.json();
+  const base = manifestUrl.replace(/[^/]+$/, '');
+  const files = [];
+  for (const name of man.files){
+    const r = await fetch(base + name);
+    if (!r.ok) throw new Error(name+' '+r.status);
+    files.push(new File([await r.blob()], name));
+  }
+  await handleFiles(files);
+}
+if (window.PLEW_HUGO){
+  const nav = document.getElementById('examplesNav');
+  if (nav){
+    nav.style.display = '';
+    const a = nav.querySelector('a');
+    if (a && window.PLEW_EXAMPLES_INDEX) a.href = window.PLEW_EXAMPLES_INDEX;
+  }
+}
+if (window.PLEW_EXAMPLE){
+  loadRemoteExample(window.PLEW_EXAMPLE).catch(e=>{
+    console.error(e);
+    setStatus('inputStatus','err','Could not load the example dataset.');
+  });
 }
 </script>
 </body>
