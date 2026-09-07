@@ -13,19 +13,12 @@ resources/
 /englishes_of_the_world/
 /readMe_alpilink.md
 
-# Other local dumps and experiments
-/cim/
+# Local experiments (keep on disk)
+/neighborhood/
 /kopes/
+/cim/
 /totoli/
 /sebastianstr/
-neighborhood.csv
-neighborhood.png
-neighborhood-calibrated.csv
-neighborhood-snapshot.png
-neighborhood-unzoom-calibrated.csv
-neighborhood_unzoom.png
-iris.csv
-map.png
+
 demo-atlas-map.png
-1.2.1_map_legend.png
 *.zip

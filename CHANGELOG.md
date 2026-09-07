@@ -8,6 +8,14 @@ Work-in-progress on `plew-map.html`; not yet committed or merged to `main`.
 
 ### Added
 
+#### PLeW editor features on the map
+- Undo / redo and a change log for moves, edits, adds, and deletes.
+- Compare two records (Alt+click for slot B). Ctrl/Cmd+click marks points.
+- Column roles: retag and hide fields; prefixes follow on CSV export.
+- Visualization setup JSON (encodings, filters, calibration, roles).
+- Record-window Dark / Light PNG snapshots.
+- **B** hides the sidebar. JSON/JSONL upload. **Load media files…** as a second step (mixed drops unchanged).
+
 #### Drag-to-reposition points
 - New **Edit positions** sidebar section (visible after valid calibration).
 - **Drag points to move them** checkbox — drag any plotted point on the map; location columns update live.
